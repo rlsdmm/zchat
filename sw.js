@@ -1,5 +1,5 @@
 // Guarda só os arquivos do próprio app (nada da conversa) pra abrir rápido.
-const CACHE = "papo-v1";
+const CACHE = "zchat-v2";
 const ARQS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-180.png"];
 
 self.addEventListener("install", e => {

@@ -5,28 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://*.firebaseio.com; connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com; frame-src https://*.firebaseio.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; media-src 'self' blob: mediastream:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
-<title>Papo</title>
+<title>Z Chat</title>
 <meta name="description" content="Conversa privada, criptografada de ponta a ponta, com texto e videochamada.">
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Papo">
+<meta name="apple-mobile-web-app-title" content="Z Chat">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
 :root{
-  --bg:#f3f0ea; --panel:#ffffff; --ink:#1d1c1a; --muted:#6c675e; --line:#e2ddd3;
-  --me:#0f766e; --me-ink:#ffffff; --them:#ffffff; --them-ink:#1d1c1a;
-  --accent:#0f766e; --danger:#c2410c; --ok:#15803d; --focus:#0ea5e9;
+  --bg:#fbfbfa; --ink:#121212; --muted:#8a8a86; --line:#e7e7e4; --soft:#f0f0ee;
+  --me:#121212; --me-ink:#fbfbfa; --them:#efefec; --them-ink:#121212;
+  --danger:#b42318; --on:#2f9e44;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
   :root{
-    --bg:#131311; --panel:#1d1c19; --ink:#ece8e0; --muted:#a29d93; --line:#2f2d29;
-    --me:#0f766e; --me-ink:#ffffff; --them:#26251f; --them-ink:#ece8e0;
-    --accent:#2dd4bf; --danger:#fb923c; --ok:#4ade80;
+    --bg:#0f0f0f; --ink:#ececea; --muted:#7f7f7b; --line:#232323; --soft:#1a1a1a;
+    --me:#ececea; --me-ink:#0f0f0f; --them:#1c1c1c; --them-ink:#ececea;
+    --danger:#f97066; --on:#51cf66;
     color-scheme:dark;
   }
 }
@@ -35,104 +36,102 @@ html,body{margin:0;height:100%}
 body{
   height:var(--vh,100dvh); display:flex; flex-direction:column; overflow:hidden;
   background:var(--bg); color:var(--ink);
-  font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  -webkit-text-size-adjust:100%;
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
+  -webkit-text-size-adjust:100%; -webkit-font-smoothing:antialiased;
 }
 button{font:inherit;color:inherit;cursor:pointer}
-:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 [hidden]{display:none!important}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* ---------- entrada ---------- */
-#entrar{flex:1;overflow-y:auto;display:flex;align-items:center;justify-content:center;
-  padding:24px 16px calc(24px + env(safe-area-inset-bottom))}
-.cartao{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:24px}
-.cartao h1{margin:0 0 4px;font-size:28px}
-.cartao p{margin:0 0 16px;color:var(--muted)}
-label{display:block;font-weight:600;margin:16px 0 6px}
-input[type=text]{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
-.btn{display:block;width:100%;min-height:48px;margin-top:12px;border:0;border-radius:12px;padding:12px 16px;font-weight:600;background:var(--me);color:#fff}
-.btn.sec{background:transparent;color:var(--accent);border:1px solid var(--line)}
+#entrar{flex:1;overflow-y:auto;display:flex;flex-direction:column;justify-content:center;
+  width:100%;max-width:400px;margin:0 auto;padding:40px 24px calc(40px + env(safe-area-inset-bottom))}
+.marca{margin:0;font-size:44px;font-weight:700;letter-spacing:-.04em;line-height:1}
+#entrarSub{margin:10px 0 28px;color:var(--muted)}
+label{display:block;font-size:13px;color:var(--muted);margin:22px 0 2px}
+input[type=text]{width:100%;font:inherit;font-size:16px;padding:10px 0;border:0;border-bottom:1px solid var(--line);
+  border-radius:0;background:transparent;color:var(--ink)}
+input[type=text]:focus{outline:0;border-bottom-color:var(--ink)}
+.btn{display:block;width:100%;min-height:48px;margin-top:20px;border:0;border-radius:6px;padding:12px 16px;
+  font-weight:600;background:var(--ink);color:var(--bg)}
+.btn.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
 .btn.perigo{background:transparent;color:var(--danger);border:1px solid var(--line)}
-.btn:disabled{opacity:.5;cursor:default}
-.ou{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;margin:20px 0 4px}
-.ou::before,.ou::after{content:"";flex:1;height:1px;background:var(--line)}
-.erro{color:var(--danger);font-size:14px;margin-top:8px;min-height:1em}
-.nota{font-size:13px;color:var(--muted);margin-top:16px}
+.btn:disabled{opacity:.45;cursor:default}
+.separa{height:1px;background:var(--line);margin:32px 0 6px}
+.erro{color:var(--danger);font-size:14px;margin-top:10px;min-height:1em}
+.nota{font-size:13px;color:var(--muted);margin-top:28px}
 
 /* ---------- conversa ---------- */
-#conversa{flex:1;display:flex;flex-direction:column;min-height:0}
-.topo{display:flex;align-items:center;gap:4px;padding:8px 8px 8px 16px;padding-top:calc(8px + env(safe-area-inset-top));
-  background:var(--panel);border-bottom:1px solid var(--line)}
+#conversa{flex:1;display:flex;flex-direction:column;min-height:0;width:100%;max-width:720px;margin:0 auto}
+.topo{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 16px;padding-top:calc(10px + env(safe-area-inset-top));
+  border-bottom:1px solid var(--line)}
 .topo .titulo{flex:1;min-width:0}
-.topo h1{margin:0;font-size:18px;line-height:1.2}
-#status{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#status .ponto{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:5px;vertical-align:1px}
-.ico{width:44px;height:44px;border:0;border-radius:50%;background:transparent;display:grid;place-items:center;color:var(--accent);flex:none}
-.ico:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}
-.ico svg{width:24px;height:24px}
+.topo h1{margin:0;font-size:16px;font-weight:700;letter-spacing:-.01em}
+#status{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#status .ponto{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--on);margin-right:6px;vertical-align:2px}
+.txtbt{border:0;background:none;min-height:44px;padding:0 8px;font-size:15px;color:var(--ink)}
+.txtbt:hover{text-decoration:underline;text-underline-offset:3px}
 
-#lista{flex:1;overflow-y:auto;padding:12px 12px 16px;display:flex;flex-direction:column;gap:2px;overscroll-behavior:contain}
-.dia{align-self:center;font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);
-  padding:2px 10px;border-radius:10px;margin:14px 0 6px}
-.quem{font-size:12px;color:var(--muted);margin:10px 0 2px 6px}
-.msg{max-width:min(80%,560px);padding:7px 10px 7px 12px;border-radius:16px;white-space:pre-wrap;overflow-wrap:anywhere}
-.msg.grupo{margin-top:8px}
-.msg.eu{align-self:flex-end;background:var(--me);color:var(--me-ink);border-bottom-right-radius:5px}
-.msg.ele{align-self:flex-start;background:var(--them);color:var(--them-ink);border:1px solid var(--line);border-bottom-left-radius:5px}
-.msg a{color:inherit;text-decoration:underline}
-.msg .hora{float:right;font-size:11px;opacity:.72;margin:7px 0 -4px 10px;white-space:nowrap}
-.msg.pend .hora::after{content:" · enviando"}
-.msg.ruim{font-style:italic;opacity:.6}
-.vazio{margin:auto;text-align:center;color:var(--muted);max-width:300px;padding:24px}
-.vazio svg{width:40px;height:40px;color:var(--accent);margin-bottom:8px}
-#maisAntigas{align-self:center;margin:4px 0 8px;border:1px solid var(--line);background:var(--panel);border-radius:16px;padding:8px 14px;font-size:14px;color:var(--accent)}
+#lista{flex:1;overflow-y:auto;padding:8px 16px 16px;display:flex;flex-direction:column;gap:3px;overscroll-behavior:contain}
+.dia{align-self:center;font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin:22px 0 8px}
+.quem{font-size:12px;color:var(--muted);margin:12px 0 2px}
+.msg{max-width:min(78%,520px);padding:8px 12px;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.grupo{margin-top:10px}
+.msg.eu{align-self:flex-end;background:var(--me);color:var(--me-ink)}
+.msg.ele{align-self:flex-start;background:var(--them);color:var(--them-ink)}
+.msg a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.msg .hora{float:right;font-size:10.5px;opacity:.5;margin:6px 0 -3px 10px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.msg.pend{opacity:.6}
+.msg.ruim{font-style:italic;opacity:.5}
+.vazio{margin:auto;color:var(--muted);font-size:14px;padding:24px}
+#maisAntigas{align-self:center;margin:8px 0;border:0;background:none;font-size:13px;color:var(--muted);text-decoration:underline;
+  text-underline-offset:3px;min-height:44px}
 
-.compor{display:flex;align-items:flex-end;gap:8px;padding:8px 8px calc(8px + env(safe-area-inset-bottom));
-  background:var(--panel);border-top:1px solid var(--line)}
-#texto{flex:1;resize:none;font:inherit;font-size:16px;line-height:1.35;padding:11px 14px;border-radius:22px;border:1px solid var(--line);
-  background:var(--bg);color:var(--ink);max-height:160px;min-height:46px}
-#texto:focus-visible{outline:0;border-color:var(--accent)}
-#enviar{width:46px;height:46px;border:0;border-radius:50%;background:var(--me);color:#fff;display:grid;place-items:center;flex:none}
-#enviar svg{width:22px;height:22px}
+.compor{display:flex;align-items:flex-end;gap:8px;padding:6px 8px calc(6px + env(safe-area-inset-bottom)) 16px;border-top:1px solid var(--line)}
+#texto{flex:1;resize:none;font:inherit;font-size:16px;line-height:1.4;padding:11px 0;border:0;background:transparent;
+  color:var(--ink);max-height:160px;min-height:44px}
+#texto:focus,#texto:focus-visible{outline:0}
+#texto::placeholder{color:var(--muted)}
+#enviar{border:0;background:none;min-height:44px;padding:0 8px;font-weight:600;color:var(--ink)}
+#enviar:disabled{color:var(--muted);cursor:default}
 
 /* ---------- chamada ---------- */
-#chamada{position:fixed;inset:0;background:#0b0b0a;color:#fff;z-index:20;display:flex;flex-direction:column}
-#remoto{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#0b0b0a}
-#chamada.so-audio #remoto{opacity:0}
-#local{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;width:28vw;max-width:150px;aspect-ratio:3/4;
-  object-fit:cover;border-radius:14px;background:#222;border:2px solid rgba(255,255,255,.25);z-index:2}
+#chamada{position:fixed;inset:0;background:#0b0b0b;color:#f2f2f0;z-index:20;display:flex;flex-direction:column}
+#remoto{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#0b0b0b}
+#local{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;width:26vw;max-width:140px;aspect-ratio:3/4;
+  object-fit:cover;border-radius:8px;background:#1a1a1a;z-index:2}
 #local.espelho{transform:scaleX(-1)}
-.ch-info{position:relative;z-index:1;text-align:center;padding:calc(40px + env(safe-area-inset-top)) 16px 0;text-shadow:0 1px 6px rgba(0,0,0,.6)}
-.ch-info strong{display:block;font-size:26px}
-.ch-info span{font-size:16px;opacity:.85}
-#chamada.ativa .ch-info{padding-top:calc(14px + env(safe-area-inset-top));text-align:left;padding-right:45vw}
-#chamada.ativa .ch-info strong{font-size:17px}
-#chamada.ativa .ch-info span{font-size:14px}
-.ch-botoes{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;justify-content:center;gap:18px;
-  padding:16px 16px calc(24px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.55))}
-.rd{width:60px;height:60px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,255,255,.18);color:#fff;backdrop-filter:blur(6px)}
-.rd svg{width:28px;height:28px}
-.rd.off{background:#fff;color:#111}
-.rd.verm{background:#dc2626}
-.rd.verde{background:#16a34a}
-.rd-rot{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px}
+.ch-info{position:relative;z-index:1;padding:calc(72px + env(safe-area-inset-top)) 24px 0;text-shadow:0 1px 8px rgba(0,0,0,.5)}
+.ch-info strong{display:block;font-size:30px;font-weight:700;letter-spacing:-.02em}
+.ch-info span{font-size:15px;opacity:.7}
+#chamada.ativa .ch-info{padding:calc(16px + env(safe-area-inset-top)) 45vw 0 16px}
+#chamada.ativa .ch-info strong{font-size:16px}
+#chamada.ativa .ch-info span{font-size:13px;font-variant-numeric:tabular-nums}
+.ch-botoes{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;justify-content:center;gap:20px;
+  padding:16px 16px calc(28px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.5))}
+.rd{width:58px;height:58px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,255,255,.14);color:#fff}
+.rd svg{width:24px;height:24px}
+.rd.off{background:#f2f2f0;color:#111}
+.rd.verm{background:#e03131}
+.rd.verde{background:#2f9e44}
+.rd:disabled{opacity:.4}
+.rd-rot{display:flex;flex-direction:column;align-items:center;gap:8px;font-size:13px;opacity:.9}
 
 /* ---------- ajustes ---------- */
-dialog{border:0;padding:0;border-radius:20px;background:var(--panel);color:var(--ink);width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 48px)}
-dialog::backdrop{background:rgba(0,0,0,.45)}
-.dlg{padding:20px;overflow-y:auto;max-height:calc(100dvh - 48px)}
-.dlg-topo{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
-.dlg h2{margin:0;font-size:20px}
-.dlg h3{margin:22px 0 4px;font-size:15px}
-.dlg p{margin:4px 0;color:var(--muted);font-size:14px}
+dialog{border:0;padding:0;border-radius:10px;background:var(--bg);color:var(--ink);width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 48px)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+.dlg{padding:20px 24px 24px;overflow-y:auto;max-height:calc(100dvh - 48px)}
+.dlg-topo{display:flex;align-items:center;justify-content:space-between;margin:0 -8px 4px 0}
+.dlg h2{margin:0;font-size:18px;letter-spacing:-.01em}
+.dlg h3{margin:28px 0 6px;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.dlg p{margin:6px 0;color:var(--muted);font-size:14px}
 .linha{display:flex;gap:8px}
-.linha .btn{margin-top:8px}
-.aviso{background:color-mix(in srgb,var(--danger) 10%,transparent);border-radius:12px;padding:10px 12px;font-size:14px;margin-top:8px}
+.linha .btn{margin-top:10px}
 
-#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:30;
-  background:#1d1c1a;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;max-width:calc(100vw - 32px);
-  box-shadow:0 6px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s}
+#toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:30;
+  background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:6px;font-size:14px;max-width:calc(100vw - 32px);
+  opacity:0;pointer-events:none;transition:opacity .15s}
 #toast.on{opacity:1}
 @media (prefers-reduced-motion: reduce){#toast{transition:none}}
 </style>
@@ -141,47 +140,39 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 
 <!-- tela de entrada -->
 <main id="entrar" hidden>
-  <div class="cartao">
-    <h1>Papo</h1>
-    <p id="entrarSub">Conversa privada, criptografada de ponta a ponta.</p>
+    <h1 class="marca">Z Chat</h1>
+    <p id="entrarSub">Conversa privada.</p>
     <label for="nome">Seu nome</label>
-    <input type="text" id="nome" maxlength="30" autocomplete="nickname" placeholder="Como vão te ver">
+    <input type="text" id="nome" maxlength="30" autocomplete="nickname">
     <div id="blocoConvite" hidden>
-      <button class="btn" id="aceitar">Entrar na conversa</button>
+      <button class="btn" id="aceitar">Entrar</button>
     </div>
     <div id="blocoNovo">
-      <button class="btn" id="criar">Criar conversa nova</button>
-      <div class="ou">ou</div>
-      <label for="link">Já tenho um link</label>
-      <input type="text" id="link" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Cole o link aqui">
-      <button class="btn sec" id="entrarLink">Entrar com o link</button>
+      <button class="btn" id="criar">Criar conversa</button>
+      <div class="separa"></div>
+      <label for="link">Já tem um link? Cole aqui</label>
+      <input type="text" id="link" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="btn sec" id="entrarLink">Entrar</button>
     </div>
     <div class="erro" id="erroEntrar" role="alert"></div>
-    <p class="nota">A chave da conversa fica só no link e nos aparelhos. O servidor guarda só texto embaralhado.</p>
-  </div>
+    <p class="nota">A chave fica no link. O servidor só guarda texto cifrado.</p>
 </main>
 
 <!-- conversa -->
 <div id="conversa" hidden>
   <header class="topo">
     <div class="titulo">
-      <h1>Papo</h1>
+      <h1>Z Chat</h1>
       <div id="status" aria-live="polite">conectando…</div>
     </div>
-    <button class="ico" id="ligar" aria-label="Fazer videochamada" title="Videochamada">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/></svg>
-    </button>
-    <button class="ico" id="abrirAjustes" aria-label="Ajustes e convite" title="Ajustes">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    </button>
+    <button class="txtbt" id="ligar" aria-label="Fazer videochamada">Ligar</button>
+    <button class="txtbt" id="abrirAjustes">Ajustes</button>
   </header>
   <div id="lista" role="log" aria-label="Mensagens" tabindex="0"></div>
   <form class="compor" id="formEnviar">
     <label for="texto" class="sr">Mensagem</label>
     <textarea id="texto" rows="1" maxlength="4000" placeholder="Mensagem" enterkeyhint="send"></textarea>
-    <button id="enviar" type="submit" aria-label="Enviar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
-    </button>
+    <button id="enviar" type="submit" disabled>Enviar</button>
   </form>
 </div>
 
@@ -207,33 +198,30 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <div class="dlg">
     <div class="dlg-topo">
       <h2 id="ajTit">Ajustes</h2>
-      <button class="ico" id="fecharAjustes" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <button class="txtbt" id="fecharAjustes">Fechar</button>
     </div>
 
-    <h3>Convidar</h3>
-    <p>Mande este link pra quem vai participar, ou abra ele no seu outro aparelho.</p>
+    <h3>Link da conversa</h3>
+    <p>Quem tem o link lê tudo. Mande só pra quem é da conversa.</p>
     <div class="linha">
       <button class="btn" id="copiarLink">Copiar link</button>
       <button class="btn sec" id="compartilhar" hidden>Compartilhar</button>
     </div>
-    <div class="aviso">Quem tiver esse link consegue ler a conversa toda. Mande só pra quem é da conversa, de preferência pessoalmente ou por um app criptografado.</div>
 
     <h3>Seu nome</h3>
-    <div class="linha">
-      <input type="text" id="novoNome" maxlength="30" aria-label="Seu nome">
-    </div>
-    <button class="btn sec" id="salvarNome">Salvar nome</button>
+    <input type="text" id="novoNome" maxlength="30" aria-label="Seu nome">
+    <button class="btn sec" id="salvarNome">Salvar</button>
 
     <h3>Notificações</h3>
-    <p id="notifTxt">Avisa de mensagem nova e de chamada enquanto o Papo estiver aberto (mesmo em outra aba ou minimizado).</p>
-    <button class="btn sec" id="ativarNotif">Ativar notificações</button>
+    <p id="notifTxt">Só chegam com o Z Chat aberto, mesmo minimizado.</p>
+    <button class="btn sec" id="ativarNotif">Ativar</button>
 
     <h3>Privacidade</h3>
-    <p>As mensagens e a combinação da chamada são cifradas (AES-256) no seu aparelho antes de sair. O vídeo vai direto de aparelho pra aparelho, também cifrado. O servidor só vê texto embaralhado e o horário das mensagens.</p>
+    <p>Mensagens cifradas no aparelho antes de sair. Vídeo direto entre os aparelhos. O servidor só vê texto cifrado e horários.</p>
 
     <h3>Este aparelho</h3>
-    <button class="btn perigo" id="sair">Sair desta conversa</button>
-    <p>Só esquece o link neste aparelho. As mensagens continuam lá pra quem tem o link.</p>
+    <button class="btn perigo" id="sair">Sair da conversa</button>
+    <p>As mensagens continuam lá. Pra voltar, use o link.</p>
   </div>
 </dialog>
 
@@ -334,7 +322,7 @@ function showEntrar(){
   $("#conversa").hidden = true; $("#entrar").hidden = false;
   $("#nome").value = myName;
   $("#blocoConvite").hidden = !convite; $("#blocoNovo").hidden = !!convite;
-  $("#entrarSub").textContent = convite ? "Você recebeu um convite pra uma conversa privada." : "Conversa privada, criptografada de ponta a ponta.";
+  $("#entrarSub").textContent = convite ? "Você foi convidado pra uma conversa." : "Conversa privada.";
   setTimeout(() => $("#nome").focus(), 50);
 }
 function pegaNome(){
@@ -459,10 +447,8 @@ function render(){
   }
   if (!arr.length && live){
     const v = document.createElement("div"); v.className = "vazio";
-    v.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
-    const p = document.createElement("div");
-    p.textContent = "Nenhuma mensagem ainda. Tudo aqui é cifrado no seu aparelho antes de sair.";
-    v.append(p); f.append(v);
+    v.textContent = "Nenhuma mensagem ainda.";
+    f.append(v);
   }
   let dia = "", ult = null;
   for (const m of arr){
@@ -489,7 +475,7 @@ function render(){
 /* ================= enviar ================= */
 const ta = $("#texto");
 const tocaTela = matchMedia("(pointer: coarse)").matches;
-function cresce(){ ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight + 2, 160) + "px"; }
+function cresce(){ $("#enviar").disabled = !ta.value.trim(); ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight + 2, 160) + "px"; }
 ta.addEventListener("input", cresce);
 ta.addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey && !tocaTela && !e.isComposing){ e.preventDefault(); enviar(); }
@@ -543,7 +529,7 @@ function mostraStatus(){
 
 /* ================= notificações ================= */
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden){ unread = 0; document.title = "Papo"; }
+  if (!document.hidden){ unread = 0; document.title = "Z Chat"; }
 });
 async function notificar(titulo, corpo, tag){
   if (!("Notification" in window) || Notification.permission !== "granted") return;
@@ -555,7 +541,7 @@ async function notificar(titulo, corpo, tag){
 }
 function avisarMsg(m){
   if (!document.hidden) return;
-  unread++; document.title = "(" + unread + ") Papo";
+  unread++; document.title = "(" + unread + ") Z Chat";
   notificar(m.n, m.x.length > 140 ? m.x.slice(0, 140) + "…" : m.x, "papo-msg");
 }
 function textoNotif(){
@@ -565,7 +551,7 @@ function textoNotif(){
   if (!("Notification" in window)){
     b.hidden = true;
     p.textContent = ios && !instalado
-      ? "No iPhone, primeiro adicione o Papo à Tela de Início (botão Compartilhar → Adicionar à Tela de Início) e abra por lá."
+      ? "No iPhone, primeiro adicione o Z Chat à Tela de Início (botão Compartilhar → Adicionar à Tela de Início) e abra por lá."
       : "Este navegador não tem notificações.";
     return;
   }
@@ -591,7 +577,7 @@ $("#copiarLink").onclick = async () => {
   try { await navigator.clipboard.writeText(linkFor(secret)); toast("Link copiado."); }
   catch { prompt("Copie o link:", linkFor(secret)); }
 };
-$("#compartilhar").onclick = () => navigator.share({ title: "Papo", text: "Entra na nossa conversa no Papo:", url: linkFor(secret) }).catch(() => {});
+$("#compartilhar").onclick = () => navigator.share({ title: "Z Chat", text: "Entra na nossa conversa no Z Chat:", url: linkFor(secret) }).catch(() => {});
 $("#salvarNome").onclick = () => {
   const n = $("#novoNome").value.trim().slice(0, 30);
   if (!n) return;
@@ -761,7 +747,7 @@ async function onCall(v){
     if (call.estado !== "parado" || !callVal || callVal.from !== v.from || callVal.a) return;
     call = { estado: "tocando", de: v.from, oferta: o, nome: String(o.n || "?").slice(0, 30), papel: "atende", facing: "user" };
     telaChamada(); tocar("entrando");
-    if (document.hidden) notificar(call.nome, "está te ligando no Papo", "papo-chamada");
+    if (document.hidden) notificar(call.nome, "está te ligando no Z Chat", "papo-chamada");
     return;
   }
   if (call.estado === "chamando" && v.from === sessao && v.a){
@@ -860,7 +846,7 @@ window.addEventListener("pagehide", () => { if (call.estado !== "parado") encerr
 /* ================= início ================= */
 (function inicio(){
   if (!window.crypto?.subtle || !window.firebase){
-    document.body.innerHTML = '<p style="padding:24px">Este navegador não conseguiu carregar o Papo. Tente abrir pelo Chrome ou Safari atualizados.</p>';
+    document.body.innerHTML = '<p style="padding:24px">Este navegador não conseguiu carregar o Z Chat. Tente abrir pelo Chrome ou Safari atualizados.</p>';
     return;
   }
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
