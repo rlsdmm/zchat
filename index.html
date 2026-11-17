@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://*.firebaseio.com; connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com; frame-src https://*.firebaseio.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; media-src 'self' blob: mediastream:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Papo</title>
+<meta name="description" content="Conversa privada, criptografada de ponta a ponta, com texto e videochamada.">
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Papo">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+:root{
+  --bg:#f3f0ea; --panel:#ffffff; --ink:#1d1c1a; --muted:#6c675e; --line:#e2ddd3;
+  --me:#0f766e; --me-ink:#ffffff; --them:#ffffff; --them-ink:#1d1c1a;
+  --accent:#0f766e; --danger:#c2410c; --ok:#15803d; --focus:#0ea5e9;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#131311; --panel:#1d1c19; --ink:#ece8e0; --muted:#a29d93; --line:#2f2d29;
+    --me:#0f766e; --me-ink:#ffffff; --them:#26251f; --them-ink:#ece8e0;
+    --accent:#2dd4bf; --danger:#fb923c; --ok:#4ade80;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  height:var(--vh,100dvh); display:flex; flex-direction:column; overflow:hidden;
+  background:var(--bg); color:var(--ink);
+  font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-text-size-adjust:100%;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- entrada ---------- */
+#entrar{flex:1;overflow-y:auto;display:flex;align-items:center;justify-content:center;
+  padding:24px 16px calc(24px + env(safe-area-inset-bottom))}
+.cartao{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:24px}
+.cartao h1{margin:0 0 4px;font-size:28px}
+.cartao p{margin:0 0 16px;color:var(--muted)}
+label{display:block;font-weight:600;margin:16px 0 6px}
+input[type=text]{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.btn{display:block;width:100%;min-height:48px;margin-top:12px;border:0;border-radius:12px;padding:12px 16px;font-weight:600;background:var(--me);color:#fff}
+.btn.sec{background:transparent;color:var(--accent);border:1px solid var(--line)}
+.btn.perigo{background:transparent;color:var(--danger);border:1px solid var(--line)}
+.btn:disabled{opacity:.5;cursor:default}
+.ou{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;margin:20px 0 4px}
+.ou::before,.ou::after{content:"";flex:1;height:1px;background:var(--line)}
+.erro{color:var(--danger);font-size:14px;margin-top:8px;min-height:1em}
+.nota{font-size:13px;color:var(--muted);margin-top:16px}
+
+/* ---------- conversa ---------- */
+#conversa{flex:1;display:flex;flex-direction:column;min-height:0}
+.topo{display:flex;align-items:center;gap:4px;padding:8px 8px 8px 16px;padding-top:calc(8px + env(safe-area-inset-top));
+  background:var(--panel);border-bottom:1px solid var(--line)}
+.topo .titulo{flex:1;min-width:0}
+.topo h1{margin:0;font-size:18px;line-height:1.2}
+#status{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#status .ponto{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:5px;vertical-align:1px}
+.ico{width:44px;height:44px;border:0;border-radius:50%;background:transparent;display:grid;place-items:center;color:var(--accent);flex:none}
+.ico:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ico svg{width:24px;height:24px}
+
+#lista{flex:1;overflow-y:auto;padding:12px 12px 16px;display:flex;flex-direction:column;gap:2px;overscroll-behavior:contain}
+.dia{align-self:center;font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);
+  padding:2px 10px;border-radius:10px;margin:14px 0 6px}
+.quem{font-size:12px;color:var(--muted);margin:10px 0 2px 6px}
+.msg{max-width:min(80%,560px);padding:7px 10px 7px 12px;border-radius:16px;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.grupo{margin-top:8px}
+.msg.eu{align-self:flex-end;background:var(--me);color:var(--me-ink);border-bottom-right-radius:5px}
+.msg.ele{align-self:flex-start;background:var(--them);color:var(--them-ink);border:1px solid var(--line);border-bottom-left-radius:5px}
+.msg a{color:inherit;text-decoration:underline}
+.msg .hora{float:right;font-size:11px;opacity:.72;margin:7px 0 -4px 10px;white-space:nowrap}
+.msg.pend .hora::after{content:" · enviando"}
+.msg.ruim{font-style:italic;opacity:.6}
+.vazio{margin:auto;text-align:center;color:var(--muted);max-width:300px;padding:24px}
+.vazio svg{width:40px;height:40px;color:var(--accent);margin-bottom:8px}
+#maisAntigas{align-self:center;margin:4px 0 8px;border:1px solid var(--line);background:var(--panel);border-radius:16px;padding:8px 14px;font-size:14px;color:var(--accent)}
+
+.compor{display:flex;align-items:flex-end;gap:8px;padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+  background:var(--panel);border-top:1px solid var(--line)}
+#texto{flex:1;resize:none;font:inherit;font-size:16px;line-height:1.35;padding:11px 14px;border-radius:22px;border:1px solid var(--line);
+  background:var(--bg);color:var(--ink);max-height:160px;min-height:46px}
+#texto:focus-visible{outline:0;border-color:var(--accent)}
+#enviar{width:46px;height:46px;border:0;border-radius:50%;background:var(--me);color:#fff;display:grid;place-items:center;flex:none}
+#enviar svg{width:22px;height:22px}
+
+/* ---------- chamada ---------- */
+#chamada{position:fixed;inset:0;background:#0b0b0a;color:#fff;z-index:20;display:flex;flex-direction:column}
+#remoto{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#0b0b0a}
+#chamada.so-audio #remoto{opacity:0}
+#local{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;width:28vw;max-width:150px;aspect-ratio:3/4;
+  object-fit:cover;border-radius:14px;background:#222;border:2px solid rgba(255,255,255,.25);z-index:2}
+#local.espelho{transform:scaleX(-1)}
+.ch-info{position:relative;z-index:1;text-align:center;padding:calc(40px + env(safe-area-inset-top)) 16px 0;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+.ch-info strong{display:block;font-size:26px}
+.ch-info span{font-size:16px;opacity:.85}
+#chamada.ativa .ch-info{padding-top:calc(14px + env(safe-area-inset-top));text-align:left;padding-right:45vw}
+#chamada.ativa .ch-info strong{font-size:17px}
+#chamada.ativa .ch-info span{font-size:14px}
+.ch-botoes{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;justify-content:center;gap:18px;
+  padding:16px 16px calc(24px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.55))}
+.rd{width:60px;height:60px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,255,255,.18);color:#fff;backdrop-filter:blur(6px)}
+.rd svg{width:28px;height:28px}
+.rd.off{background:#fff;color:#111}
+.rd.verm{background:#dc2626}
+.rd.verde{background:#16a34a}
+.rd-rot{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px}
+
+/* ---------- ajustes ---------- */
+dialog{border:0;padding:0;border-radius:20px;background:var(--panel);color:var(--ink);width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 48px)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.dlg{padding:20px;overflow-y:auto;max-height:calc(100dvh - 48px)}
+.dlg-topo{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.dlg h2{margin:0;font-size:20px}
+.dlg h3{margin:22px 0 4px;font-size:15px}
+.dlg p{margin:4px 0;color:var(--muted);font-size:14px}
+.linha{display:flex;gap:8px}
+.linha .btn{margin-top:8px}
+.aviso{background:color-mix(in srgb,var(--danger) 10%,transparent);border-radius:12px;padding:10px 12px;font-size:14px;margin-top:8px}
+
+#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:30;
+  background:#1d1c1a;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;max-width:calc(100vw - 32px);
+  box-shadow:0 6px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.on{opacity:1}
+@media (prefers-reduced-motion: reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+
+<!-- tela de entrada -->
+<main id="entrar" hidden>
+  <div class="cartao">
+    <h1>Papo</h1>
+    <p id="entrarSub">Conversa privada, criptografada de ponta a ponta.</p>
+    <label for="nome">Seu nome</label>
+    <input type="text" id="nome" maxlength="30" autocomplete="nickname" placeholder="Como vão te ver">
+    <div id="blocoConvite" hidden>
+      <button class="btn" id="aceitar">Entrar na conversa</button>
+    </div>
+    <div id="blocoNovo">
+      <button class="btn" id="criar">Criar conversa nova</button>
+      <div class="ou">ou</div>
+      <label for="link">Já tenho um link</label>
+      <input type="text" id="link" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Cole o link aqui">
+      <button class="btn sec" id="entrarLink">Entrar com o link</button>
+    </div>
+    <div class="erro" id="erroEntrar" role="alert"></div>
+    <p class="nota">A chave da conversa fica só no link e nos aparelhos. O servidor guarda só texto embaralhado.</p>
+  </div>
+</main>
+
+<!-- conversa -->
+<div id="conversa" hidden>
+  <header class="topo">
+    <div class="titulo">
+      <h1>Papo</h1>
+      <div id="status" aria-live="polite">conectando…</div>
+    </div>
+    <button class="ico" id="ligar" aria-label="Fazer videochamada" title="Videochamada">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/></svg>
+    </button>
+    <button class="ico" id="abrirAjustes" aria-label="Ajustes e convite" title="Ajustes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+  <div id="lista" role="log" aria-label="Mensagens" tabindex="0"></div>
+  <form class="compor" id="formEnviar">
+    <label for="texto" class="sr">Mensagem</label>
+    <textarea id="texto" rows="1" maxlength="4000" placeholder="Mensagem" enterkeyhint="send"></textarea>
+    <button id="enviar" type="submit" aria-label="Enviar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
+    </button>
+  </form>
+</div>
+
+<!-- chamada -->
+<section id="chamada" hidden aria-label="Videochamada">
+  <video id="remoto" autoplay playsinline></video>
+  <video id="local" autoplay playsinline muted class="espelho"></video>
+  <div class="ch-info"><strong id="chNome"></strong><span id="chEstado" aria-live="polite"></span></div>
+  <div class="ch-botoes" id="chTocando">
+    <div class="rd-rot"><button class="rd verm" id="recusar" aria-label="Recusar"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg></button>Recusar</div>
+    <div class="rd-rot"><button class="rd verde" id="atender" aria-label="Atender"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/></svg></button>Atender</div>
+  </div>
+  <div class="ch-botoes" id="chControles" hidden>
+    <button class="rd" id="btMic" aria-label="Desligar microfone" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/><path class="risco" d="M3 3l18 18" opacity="0"/></svg></button>
+    <button class="rd" id="btCam" aria-label="Desligar câmera" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/><path class="risco" d="M3 3l18 18" opacity="0"/></svg></button>
+    <button class="rd" id="btVirar" aria-label="Trocar câmera" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3l-2-3H9L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M9 13a3 3 0 0 1 5.2-2M15 13a3 3 0 0 1-5.2 2"/><path d="M14 9v2h-2M10 17v-2h2"/></svg></button>
+    <button class="rd verm" id="desligar" aria-label="Desligar"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg></button>
+  </div>
+</section>
+
+<!-- ajustes -->
+<dialog id="ajustes" aria-labelledby="ajTit">
+  <div class="dlg">
+    <div class="dlg-topo">
+      <h2 id="ajTit">Ajustes</h2>
+      <button class="ico" id="fecharAjustes" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+
+    <h3>Convidar</h3>
+    <p>Mande este link pra quem vai participar, ou abra ele no seu outro aparelho.</p>
+    <div class="linha">
+      <button class="btn" id="copiarLink">Copiar link</button>
+      <button class="btn sec" id="compartilhar" hidden>Compartilhar</button>
+    </div>
+    <div class="aviso">Quem tiver esse link consegue ler a conversa toda. Mande só pra quem é da conversa, de preferência pessoalmente ou por um app criptografado.</div>
+
+    <h3>Seu nome</h3>
+    <div class="linha">
+      <input type="text" id="novoNome" maxlength="30" aria-label="Seu nome">
+    </div>
+    <button class="btn sec" id="salvarNome">Salvar nome</button>
+
+    <h3>Notificações</h3>
+    <p id="notifTxt">Avisa de mensagem nova e de chamada enquanto o Papo estiver aberto (mesmo em outra aba ou minimizado).</p>
+    <button class="btn sec" id="ativarNotif">Ativar notificações</button>
+
+    <h3>Privacidade</h3>
+    <p>As mensagens e a combinação da chamada são cifradas (AES-256) no seu aparelho antes de sair. O vídeo vai direto de aparelho pra aparelho, também cifrado. O servidor só vê texto embaralhado e o horário das mensagens.</p>
+
+    <h3>Este aparelho</h3>
+    <button class="btn perigo" id="sair">Sair desta conversa</button>
+    <p>Só esquece o link neste aparelho. As mensagens continuam lá pra quem tem o link.</p>
+  </div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" integrity="sha384-AQ3POAMqIhwS81FrUH95ekxqBZHeP5tG2JfEL3+7GuTtfRLWnrRh32UxwzM+//A9" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" integrity="sha384-1/m+A1jVWbD3yiK3/vtFvm1+LjK1WLpSoDY+Kaxppwn/yP9BVSgdHTNQVOjrzUO5" crossorigin="anonymous"></script>
+<script>
+"use strict";
+const DB_URL = "https://sintonia-a-dois-default-rtdb.firebaseio.com";
+// STUN acha o caminho direto entre os aparelhos. Se alguma rede bloquear,
+// dá pra pôr aqui um servidor TURN: {urls:"turn:...", username:"...", credential:"..."}
+const ICE = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
+const PAGE = 80, MAX_TXT = 4000;
+
+const $ = s => document.querySelector(s);
+const te = new TextEncoder(), td = new TextDecoder();
+
+// ?perfil=b separa os dados locais (só pra testar duas pessoas no mesmo navegador)
+const PERFIL = new URLSearchParams(location.search).get("perfil") || "";
+const store = {
+  k: k => "papo" + (PERFIL ? "-" + PERFIL : "") + "-" + k,
+  get(k){ try { return localStorage.getItem(this.k(k)); } catch { return null; } },
+  set(k, v){ try { localStorage.setItem(this.k(k), v); } catch {} },
+  del(k){ try { localStorage.removeItem(this.k(k)); } catch {} },
+};
+
+function b64u(bytes){
+  const b = new Uint8Array(bytes); let s = "";
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function unb64u(str){
+  str = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (str.length % 4) str += "=";
+  const s = atob(str), b = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+  return b;
+}
+const hex = buf => [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, "0")).join("");
+const rand = n => crypto.getRandomValues(new Uint8Array(n));
+
+let toastT;
+function toast(msg, ms = 3200){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), ms);
+}
+
+// altura certa com teclado aberto no iPhone
+if (window.visualViewport){
+  const fit = () => { document.documentElement.style.setProperty("--vh", visualViewport.height + "px"); window.scrollTo(0, 0); };
+  visualViewport.addEventListener("resize", fit); fit();
+}
+
+/* ================= identidade local ================= */
+let autor = store.get("autor");
+if (!autor){ autor = b64u(rand(9)); store.set("autor", autor); }
+const sessao = b64u(rand(9));            // muda a cada abertura (presença e chamada)
+let myName = store.get("nome") || "";
+let secret = null, roomId = null, key = null;
+let db = null, roomRef = null, mRef = null, callRef = null;
+let serverOff = 0; const now = () => Date.now() + serverOff;
+
+/* ================= criptografia ================= */
+// Do segredo do link saem duas coisas independentes:
+//  - o endereço da sala no banco (o servidor só vê isso)
+//  - a chave AES-256-GCM (nunca sai do aparelho)
+async function derive(sec){
+  const raw = unb64u(sec);
+  if (raw.length !== 32) throw new Error("link inválido");
+  const base = await crypto.subtle.importKey("raw", raw, "HKDF", false, ["deriveBits", "deriveKey"]);
+  const p = info => ({ name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: te.encode(info) });
+  roomId = hex(await crypto.subtle.deriveBits(p("papo/sala/v1"), base, 160));
+  key = await crypto.subtle.deriveKey(p("papo/chave/v1"), base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+async function seal(obj, kind){
+  const iv = rand(12);
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: te.encode(roomId + "|" + kind) }, key, te.encode(JSON.stringify(obj)));
+  const out = new Uint8Array(12 + ct.byteLength); out.set(iv); out.set(new Uint8Array(ct), 12);
+  return b64u(out);
+}
+async function unseal(str, kind){
+  try {
+    const b = unb64u(str);
+    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b.slice(0, 12), additionalData: te.encode(roomId + "|" + kind) }, key, b.slice(12));
+    return JSON.parse(td.decode(pt));
+  } catch { return null; }
+}
+const linkFor = sec => location.origin + location.pathname + "#" + sec;
+function parseLink(txt){
+  const m = String(txt || "").trim().match(/(?:#|^)([A-Za-z0-9_-]{43})\s*$/);
+  return m ? m[1] : null;
+}
+
+/* ================= entrada ================= */
+let convite = null;
+function showEntrar(){
+  $("#conversa").hidden = true; $("#entrar").hidden = false;
+  $("#nome").value = myName;
+  $("#blocoConvite").hidden = !convite; $("#blocoNovo").hidden = !!convite;
+  $("#entrarSub").textContent = convite ? "Você recebeu um convite pra uma conversa privada." : "Conversa privada, criptografada de ponta a ponta.";
+  setTimeout(() => $("#nome").focus(), 50);
+}
+function pegaNome(){
+  const n = $("#nome").value.trim().slice(0, 30);
+  if (!n){ $("#erroEntrar").textContent = "Coloca seu nome primeiro."; $("#nome").focus(); return null; }
+  return n;
+}
+async function entrarCom(sec, novo){
+  const n = pegaNome(); if (!n) return;
+  myName = n; store.set("nome", n);
+  secret = sec; store.set("segredo", sec);
+  await abrirSala();
+  if (novo){ abrirAjustes(); toast("Conversa criada. Agora manda o link."); }
+}
+$("#criar").onclick = () => entrarCom(b64u(rand(32)), true);
+$("#aceitar").onclick = () => entrarCom(convite, false);
+$("#entrarLink").onclick = () => {
+  const s = parseLink($("#link").value);
+  if (!s){ $("#erroEntrar").textContent = "Esse link não parece certo. Copia ele inteiro."; return; }
+  entrarCom(s, false);
+};
+$("#link").addEventListener("keydown", e => { if (e.key === "Enter") $("#entrarLink").click(); });
+
+/* ================= sala ================= */
+const msgs = new Map();
+const pend = new Set();
+let oldestKey = null, hasMore = false, live = false, conectado = false, forceBottom = true;
+let unread = 0;
+
+async function abrirSala(){
+  await derive(secret);
+  $("#entrar").hidden = true; $("#conversa").hidden = false;
+  navigator.storage?.persist?.().catch(() => {});
+
+  firebase.initializeApp({ databaseURL: DB_URL });
+  db = firebase.database();
+  roomRef = db.ref("salas/" + roomId);
+  mRef = roomRef.child("m");
+  callRef = roomRef.child("call");
+
+  db.ref(".info/serverTimeOffset").on("value", s => { serverOff = s.val() || 0; });
+  db.ref(".info/connected").on("value", s => {
+    conectado = !!s.val();
+    if (conectado) anunciar();
+    mostraStatus();
+  });
+  const falhou = e => { console.error(e); toast("Erro no servidor: " + e.message, 6000); };
+
+  const q = mRef.orderByKey().limitToLast(PAGE);
+  q.on("child_added", s => addMsg(s.key, s.val(), live), falhou);
+  q.once("value", s => {
+    hasMore = s.numChildren() >= PAGE;
+    // espera as decifragens da primeira leva
+    setTimeout(() => { live = true; forceBottom = true; agenda(); }, 0);
+  }, falhou);
+  roomRef.child("on").on("value", presenca, falhou);
+  callRef.on("value", s => { callVal = s.val(); onCall(callVal); }, falhou);
+  agenda();
+  setTimeout(() => $("#texto").focus({ preventScroll: true }), 100);
+}
+
+async function addMsg(k, v, isLive){
+  if (!v || typeof v.c !== "string") return;
+  const o = await unseal(v.c, "m");
+  const t = typeof v.t === "number" ? v.t : now();
+  const m = (o && typeof o.x === "string")
+    ? { k, d: String(o.d || ""), n: String(o.n || "?").slice(0, 30), x: o.x.slice(0, MAX_TXT), t }
+    : { k, ruim: true, t };
+  msgs.set(k, m);
+  if (!oldestKey || k < oldestKey) oldestKey = k;
+  agenda();
+  if (isLive && !m.ruim && !meu(m)) avisarMsg(m);
+}
+const meu = m => m.d === autor;
+
+$("#lista").addEventListener("click", async e => {
+  if (e.target.id !== "maisAntigas") return;
+  e.target.disabled = true;
+  const s = await mRef.orderByKey().endAt(oldestKey).limitToLast(PAGE + 1).once("value");
+  const arr = []; s.forEach(c => { if (c.key !== oldestKey) arr.push(c); });
+  hasMore = arr.length >= PAGE;
+  await Promise.all(arr.map(c => addMsg(c.key, c.val(), false)));
+});
+
+let raf = 0;
+// setTimeout em vez de requestAnimationFrame: rAF para em aba de fundo
+function agenda(){ if (!raf) raf = setTimeout(() => { raf = 0; render(); }, 16); }
+
+const fmtHora = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const fmtDia = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+const fmtDiaAno = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric" });
+function rotuloDia(ts){
+  const d = new Date(ts), hoje = new Date();
+  const z = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const dif = Math.round((z(hoje) - z(d)) / 864e5);
+  if (dif === 0) return "Hoje";
+  if (dif === 1) return "Ontem";
+  return d.getFullYear() === hoje.getFullYear() ? fmtDia.format(d) : fmtDiaAno.format(d);
+}
+function preencheTexto(el, txt){
+  const re = /\bhttps?:\/\/[^\s<>"]+/gi; let i = 0, m;
+  while ((m = re.exec(txt))){
+    el.append(txt.slice(i, m.index));
+    const a = document.createElement("a");
+    a.href = m[0]; a.textContent = m[0]; a.target = "_blank"; a.rel = "noopener noreferrer";
+    el.append(a); i = m.index + m[0].length;
+  }
+  el.append(txt.slice(i));
+}
+
+function render(){
+  const L = $("#lista");
+  const noFim = forceBottom || L.scrollHeight - L.scrollTop - L.clientHeight < 90;
+  const doFim = L.scrollHeight - L.scrollTop;
+  const arr = [...msgs.values()].sort((a, b) => a.k < b.k ? -1 : a.k > b.k ? 1 : 0);
+  const outros = new Set(arr.filter(m => !m.ruim && !meu(m)).map(m => m.d));
+  const f = document.createDocumentFragment();
+
+  if (hasMore){
+    const b = document.createElement("button"); b.id = "maisAntigas"; b.type = "button";
+    b.textContent = "Ver mensagens anteriores"; f.append(b);
+  }
+  if (!arr.length && live){
+    const v = document.createElement("div"); v.className = "vazio";
+    v.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+    const p = document.createElement("div");
+    p.textContent = "Nenhuma mensagem ainda. Tudo aqui é cifrado no seu aparelho antes de sair.";
+    v.append(p); f.append(v);
+  }
+  let dia = "", ult = null;
+  for (const m of arr){
+    const r = rotuloDia(m.t);
+    if (r !== dia){ dia = r; ult = null; const d = document.createElement("div"); d.className = "dia"; d.textContent = r; f.append(d); }
+    const eu = !m.ruim && meu(m), quemK = m.ruim ? "?" : m.d;
+    const novoGrupo = quemK !== ult;
+    if (!eu && novoGrupo && outros.size > 1 && !m.ruim){
+      const q = document.createElement("div"); q.className = "quem"; q.textContent = m.n; f.append(q);
+    }
+    const b = document.createElement("div");
+    b.className = "msg " + (eu ? "eu" : "ele") + (novoGrupo ? " grupo" : "") + (pend.has(m.k) ? " pend" : "") + (m.ruim ? " ruim" : "");
+    if (m.ruim) b.textContent = "Mensagem que não deu pra abrir";
+    else preencheTexto(b, m.x);
+    const h = document.createElement("span"); h.className = "hora"; h.textContent = fmtHora.format(new Date(m.t));
+    b.append(h); f.append(b);
+    ult = quemK;
+  }
+  L.replaceChildren(f);
+  L.scrollTop = noFim ? L.scrollHeight : L.scrollHeight - doFim;
+  forceBottom = false;
+}
+
+/* ================= enviar ================= */
+const ta = $("#texto");
+const tocaTela = matchMedia("(pointer: coarse)").matches;
+function cresce(){ ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight + 2, 160) + "px"; }
+ta.addEventListener("input", cresce);
+ta.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey && !tocaTela && !e.isComposing){ e.preventDefault(); enviar(); }
+});
+$("#formEnviar").addEventListener("submit", e => { e.preventDefault(); enviar(); });
+
+async function enviar(){
+  const txt = ta.value.trim();
+  if (!txt || !mRef) return;
+  if (txt.length > MAX_TXT){ toast("Mensagem grande demais."); return; }
+  ta.value = ""; cresce(); ta.focus();
+  const ref = mRef.push();
+  pend.add(ref.key); forceBottom = true;
+  try {
+    const c = await seal({ n: myName, d: autor, x: txt }, "m");
+    await ref.set({ c, t: firebase.database.ServerValue.TIMESTAMP });
+  } catch (e){
+    msgs.delete(ref.key); ta.value = txt; cresce();
+    toast("Não enviou: " + e.message, 5000);
+  }
+  pend.delete(ref.key); agenda();
+}
+
+/* ================= presença ================= */
+let onlineNomes = [];
+async function anunciar(){
+  if (!roomRef) return;
+  const me = roomRef.child("on/" + sessao);
+  try {
+    await me.onDisconnect().remove();
+    await me.set({ c: await seal({ n: myName, d: autor }, "p"), t: firebase.database.ServerValue.TIMESTAMP });
+  } catch (e){ console.error(e); }
+}
+async function presenca(s){
+  const v = s.val() || {}, nomes = new Set();
+  await Promise.all(Object.entries(v).map(async ([id, x]) => {
+    if (id === sessao || !x) return;
+    const o = await unseal(x.c, "p");
+    if (o && o.d !== autor) nomes.add(String(o.n || "?").slice(0, 30));
+  }));
+  onlineNomes = [...nomes];
+  mostraStatus();
+}
+function mostraStatus(){
+  const s = $("#status");
+  if (!conectado){ s.textContent = "sem conexão… tentando de novo"; return; }
+  if (!onlineNomes.length){ s.textContent = "ninguém mais online agora"; return; }
+  s.innerHTML = '<span class="ponto" aria-hidden="true"></span>';
+  s.append(onlineNomes.join(", ") + " online");
+}
+
+/* ================= notificações ================= */
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden){ unread = 0; document.title = "Papo"; }
+});
+async function notificar(titulo, corpo, tag){
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    const op = { body: corpo, tag, icon: "icon-192.png", badge: "icon-192.png", renotify: true };
+    if (reg) await reg.showNotification(titulo, op); else new Notification(titulo, op);
+  } catch {}
+}
+function avisarMsg(m){
+  if (!document.hidden) return;
+  unread++; document.title = "(" + unread + ") Papo";
+  notificar(m.n, m.x.length > 140 ? m.x.slice(0, 140) + "…" : m.x, "papo-msg");
+}
+function textoNotif(){
+  const b = $("#ativarNotif"), p = $("#notifTxt");
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const instalado = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (!("Notification" in window)){
+    b.hidden = true;
+    p.textContent = ios && !instalado
+      ? "No iPhone, primeiro adicione o Papo à Tela de Início (botão Compartilhar → Adicionar à Tela de Início) e abra por lá."
+      : "Este navegador não tem notificações.";
+    return;
+  }
+  b.hidden = false;
+  if (Notification.permission === "granted"){ b.textContent = "Notificações ativadas"; b.disabled = true; }
+  else if (Notification.permission === "denied"){ b.textContent = "Bloqueadas nas configurações do navegador"; b.disabled = true; }
+  else { b.textContent = "Ativar notificações"; b.disabled = false; }
+}
+$("#ativarNotif").onclick = async () => { try { await Notification.requestPermission(); } catch {} textoNotif(); };
+
+/* ================= ajustes ================= */
+const dlg = $("#ajustes");
+function abrirAjustes(){
+  $("#novoNome").value = myName;
+  $("#compartilhar").hidden = !navigator.share;
+  textoNotif();
+  dlg.showModal();
+}
+$("#abrirAjustes").onclick = abrirAjustes;
+$("#fecharAjustes").onclick = () => dlg.close();
+dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+$("#copiarLink").onclick = async () => {
+  try { await navigator.clipboard.writeText(linkFor(secret)); toast("Link copiado."); }
+  catch { prompt("Copie o link:", linkFor(secret)); }
+};
+$("#compartilhar").onclick = () => navigator.share({ title: "Papo", text: "Entra na nossa conversa no Papo:", url: linkFor(secret) }).catch(() => {});
+$("#salvarNome").onclick = () => {
+  const n = $("#novoNome").value.trim().slice(0, 30);
+  if (!n) return;
+  myName = n; store.set("nome", n); anunciar(); toast("Nome salvo.");
+};
+$("#sair").onclick = () => {
+  if (!confirm("Sair desta conversa neste aparelho? Pra voltar vai precisar do link de novo.")) return;
+  store.del("segredo"); location.replace(location.pathname + location.search);
+};
+
+/* ================= som ================= */
+let actx = null;
+function liberaAudio(){
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+  } catch {}
+}
+document.addEventListener("pointerdown", liberaAudio);
+document.addEventListener("keydown", liberaAudio);
+function tom(freqs, dur, vol = .12){
+  if (!actx || actx.state !== "running") return;
+  const t0 = actx.currentTime, g = actx.createGain();
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + .02);
+  g.gain.setValueAtTime(vol, t0 + dur - .05); g.gain.linearRampToValueAtTime(0, t0 + dur);
+  g.connect(actx.destination);
+  for (const f of freqs){ const o = actx.createOscillator(); o.frequency.value = f; o.connect(g); o.start(t0); o.stop(t0 + dur); }
+}
+let somT = null;
+function tocar(tipo){
+  pararSom();
+  const um = tipo === "entrando"
+    ? () => { tom([660, 880], .35); setTimeout(() => tom([660, 880], .35), 500); navigator.vibrate?.([400, 200, 400]); }
+    : () => tom([425], 1, .06);
+  um(); somT = setInterval(um, tipo === "entrando" ? 2200 : 3000);
+}
+function pararSom(){ clearInterval(somT); somT = null; navigator.vibrate?.(0); }
+
+/* ================= videochamada ================= */
+// A oferta/resposta (que inclui a "impressão digital" da criptografia do vídeo)
+// também vai cifrada com a chave da conversa, então o servidor não consegue
+// se meter no meio da chamada.
+let call = { estado: "parado" };
+let callVal = null;
+const remoto = $("#remoto"), local = $("#local");
+
+function telaChamada(){
+  const c = call, el = $("#chamada");
+  el.hidden = c.estado === "parado";
+  if (el.hidden) return;
+  $("#chNome").textContent = c.nome || "";
+  const tocando = c.estado === "tocando";
+  $("#chTocando").hidden = !tocando; $("#chControles").hidden = tocando;
+  el.classList.toggle("ativa", c.estado === "ativa");
+  const txt = {
+    chamando: onlineNomes.length ? "chamando…" : "chamando… (ninguém online agora)",
+    tocando: "está te ligando",
+    conectando: "conectando…",
+    reconectando: "reconectando…",
+  }[c.estado];
+  if (txt) $("#chEstado").textContent = txt;
+}
+function relogio(){
+  const s = Math.floor((Date.now() - call.inicio) / 1000);
+  $("#chEstado").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+}
+
+async function pegaMidia(){
+  const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+  try {
+    return await navigator.mediaDevices.getUserMedia({ audio, video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } });
+  } catch (e){
+    try { const s = await navigator.mediaDevices.getUserMedia({ audio }); toast("Sem câmera — indo só com áudio."); return s; }
+    catch { throw e; }
+  }
+}
+function esperaIce(pc, ms){
+  return new Promise(r => {
+    if (pc.iceGatheringState === "complete") return r();
+    const t = setTimeout(r, ms);
+    pc.addEventListener("icegatheringstatechange", () => { if (pc.iceGatheringState === "complete"){ clearTimeout(t); r(); } });
+  });
+}
+function novaConexao(){
+  const pc = new RTCPeerConnection({ iceServers: ICE });
+  pc.ontrack = e => {
+    const st = e.streams[0] || new MediaStream([e.track]);
+    if (remoto.srcObject !== st) remoto.srcObject = st;
+    remoto.play().catch(() => {});
+  };
+  let quedaT = null;
+  const muda = () => {
+    if (call.pc !== pc) return;
+    const s = pc.connectionState || pc.iceConnectionState;
+    if (s === "connected" || s === "completed"){
+      clearTimeout(quedaT);
+      if (call.estado !== "ativa"){
+        if (!call.inicio) call.inicio = Date.now();
+        call.estado = "ativa"; telaChamada(); relogio();
+        clearInterval(call.relogioT); call.relogioT = setInterval(relogio, 1000);
+      }
+    } else if (s === "disconnected"){
+      if (call.estado === "ativa"){ clearInterval(call.relogioT); call.estado = "reconectando"; telaChamada(); }
+      clearTimeout(quedaT); quedaT = setTimeout(() => { if (call.pc === pc) encerrar(true, "A conexão caiu."); }, 15000);
+    } else if (s === "failed"){
+      encerrar(true, "Não conseguiu conectar o vídeo. Alguma rede pode estar bloqueando.");
+    }
+  };
+  pc.onconnectionstatechange = muda;
+  pc.oniceconnectionstatechange = muda;
+  return pc;
+}
+function mostraLocal(stream){
+  local.srcObject = stream; local.hidden = !stream.getVideoTracks().length;
+  local.play().catch(() => {});
+  navigator.mediaDevices.enumerateDevices().then(ds => {
+    $("#btVirar").hidden = ds.filter(d => d.kind === "videoinput").length < 2 || !stream.getVideoTracks().length;
+  }).catch(() => {});
+  botoesMidia();
+}
+
+async function ligar(){
+  if (call.estado !== "parado" || !callRef) return;
+  if (!conectado){ toast("Sem conexão agora."); return; }
+  liberaAudio();
+  call = { estado: "chamando", nome: onlineNomes.join(", ") || "Ligando", papel: "liga", facing: "user" };
+  telaChamada();
+  try {
+    call.stream = await pegaMidia();
+    if (call.estado !== "chamando") { call.stream.getTracks().forEach(t => t.stop()); return; }
+    mostraLocal(call.stream);
+    const pc = call.pc = novaConexao();
+    call.stream.getTracks().forEach(t => pc.addTrack(t, call.stream));
+    if (!call.stream.getVideoTracks().length) pc.addTransceiver("video", { direction: "recvonly" });
+    await pc.setLocalDescription(await pc.createOffer());
+    await esperaIce(pc, 3000);
+    if (call.pc !== pc) return;
+    const o = await seal({ n: myName, sdp: pc.localDescription.sdp, ts: Date.now() }, "o");
+    const val = { from: sessao, o, t: now() };
+    const res = await callRef.transaction(cur => {
+      if (cur && (cur.a || now() - (cur.t || 0) < 50000)) return;   // já tem chamada rolando
+      return val;
+    });
+    if (!res.committed){ encerrar(false, "Já tem uma chamada acontecendo."); return; }
+    callRef.onDisconnect().remove();
+    tocar("chamando");
+    call.esperaT = setTimeout(() => { if (call.estado === "chamando") encerrar(true, "Ninguém atendeu."); }, 45000);
+  } catch (e){
+    console.error(e);
+    encerrar(false, e.name === "NotAllowedError" ? "Precisa liberar câmera e microfone." : "Não deu pra ligar: " + e.message);
+  }
+}
+
+async function onCall(v){
+  if (!v){
+    if (call.estado === "parado") return;
+    const msg = call.estado === "tocando" ? "Chamada perdida." : call.estado === "chamando" ? "Não atendeu." : "Chamada encerrada.";
+    encerrar(false, msg);
+    return;
+  }
+  if (call.estado === "parado"){
+    if (v.from === sessao){ callRef.remove(); return; }         // sobra de uma chamada minha
+    if (v.a) return;                                             // outros já estão em chamada
+    if (now() - (v.t || 0) > 50000) return;
+    const o = await unseal(v.o, "o");
+    if (!o || typeof o.sdp !== "string" || Math.abs(Date.now() - o.ts) > 120000) return;
+    if (call.estado !== "parado" || !callVal || callVal.from !== v.from || callVal.a) return;
+    call = { estado: "tocando", de: v.from, oferta: o, nome: String(o.n || "?").slice(0, 30), papel: "atende", facing: "user" };
+    telaChamada(); tocar("entrando");
+    if (document.hidden) notificar(call.nome, "está te ligando no Papo", "papo-chamada");
+    return;
+  }
+  if (call.estado === "chamando" && v.from === sessao && v.a){
+    const a = await unseal(v.a, "a");
+    if (!a || !call.pc || call.pc.signalingState !== "have-local-offer") return;
+    pararSom(); clearTimeout(call.esperaT);
+    call.estado = "conectando"; call.nome = String(a.n || call.nome).slice(0, 30); telaChamada();
+    try { await call.pc.setRemoteDescription({ type: "answer", sdp: a.sdp }); }
+    catch (e){ encerrar(true, "Não deu pra conectar: " + e.message); }
+    return;
+  }
+  if (call.estado === "tocando" && (v.from !== call.de || (v.a && v.by !== sessao))){
+    encerrar(false, v.a ? "Atendida em outro aparelho." : null);
+  }
+}
+
+async function atender(){
+  if (call.estado !== "tocando") return;
+  liberaAudio(); pararSom();
+  const c = call; c.estado = "conectando"; telaChamada();
+  try {
+    c.stream = await pegaMidia();
+    if (call !== c){ c.stream.getTracks().forEach(t => t.stop()); return; }
+    mostraLocal(c.stream);
+    const pc = c.pc = novaConexao();
+    await pc.setRemoteDescription({ type: "offer", sdp: c.oferta.sdp });
+    c.stream.getTracks().forEach(t => pc.addTrack(t, c.stream));
+    await pc.setLocalDescription(await pc.createAnswer());
+    await esperaIce(pc, 3000);
+    if (call !== c) return;
+    const a = await seal({ n: myName, sdp: pc.localDescription.sdp, ts: Date.now() }, "a");
+    const res = await callRef.transaction(cur => {
+      if (!cur || cur.from !== c.de || cur.a) return;
+      return Object.assign({}, cur, { a, by: sessao });
+    });
+    if (!res.committed){ encerrar(false, "A chamada já tinha acabado."); return; }
+    callRef.onDisconnect().remove();
+  } catch (e){
+    console.error(e);
+    encerrar(true, e.name === "NotAllowedError" ? "Precisa liberar câmera e microfone." : "Não deu pra atender: " + e.message);
+  }
+}
+
+function encerrar(apagar, msg){
+  const c = call;
+  if (c.estado === "parado") return;
+  call = { estado: "parado" };
+  pararSom(); clearTimeout(c.esperaT); clearInterval(c.relogioT);
+  try { c.pc?.close(); } catch {}
+  c.stream?.getTracks().forEach(t => t.stop());
+  remoto.srcObject = null; local.srcObject = null;
+  $("#chamada").classList.remove("so-audio");
+  callRef?.onDisconnect().cancel();
+  // só apaga o nó se ele ainda for desta chamada
+  const dono = c.papel === "liga" ? sessao : c.de;
+  if (apagar && callVal && callVal.from === dono) callRef.remove();
+  telaChamada();
+  if (msg) toast(msg);
+}
+
+function botoesMidia(){
+  const s = call.stream; if (!s) return;
+  const a = s.getAudioTracks()[0], v = s.getVideoTracks()[0];
+  const set = (bt, on, rotOn, rotOff) => {
+    bt.classList.toggle("off", !on); bt.setAttribute("aria-pressed", String(!on));
+    bt.setAttribute("aria-label", on ? rotOn : rotOff);
+    bt.querySelector(".risco").setAttribute("opacity", on ? "0" : "1");
+  };
+  set($("#btMic"), !!a && a.enabled, "Desligar microfone", "Ligar microfone");
+  set($("#btCam"), !!v && v.enabled, "Desligar câmera", "Ligar câmera");
+  $("#btCam").disabled = !v;
+  local.classList.toggle("espelho", call.facing === "user");
+}
+$("#btMic").onclick = () => { call.stream?.getAudioTracks().forEach(t => t.enabled = !t.enabled); botoesMidia(); };
+$("#btCam").onclick = () => { call.stream?.getVideoTracks().forEach(t => t.enabled = !t.enabled); botoesMidia(); };
+$("#btVirar").onclick = async () => {
+  const c = call, velha = c.stream?.getVideoTracks()[0];
+  if (!velha || !c.pc) return;
+  const facing = c.facing === "user" ? "environment" : "user";
+  velha.stop();
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
+    const nova = s.getVideoTracks()[0];
+    const sender = c.pc.getSenders().find(x => x.track === velha || (x.track && x.track.kind === "video"));
+    if (sender) await sender.replaceTrack(nova);
+    c.stream.removeTrack(velha); c.stream.addTrack(nova); c.facing = facing;
+    local.srcObject = c.stream; botoesMidia();
+  } catch (e){ toast("Não deu pra trocar a câmera."); }
+};
+$("#ligar").onclick = ligar;
+$("#atender").onclick = atender;
+$("#recusar").onclick = () => encerrar(true, null);
+$("#desligar").onclick = () => encerrar(true, null);
+window.addEventListener("pagehide", () => { if (call.estado !== "parado") encerrar(true, null); });
+
+/* ================= início ================= */
+(function inicio(){
+  if (!window.crypto?.subtle || !window.firebase){
+    document.body.innerHTML = '<p style="padding:24px">Este navegador não conseguiu carregar o Papo. Tente abrir pelo Chrome ou Safari atualizados.</p>';
+    return;
+  }
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  const h = parseLink(location.hash);
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  secret = store.get("segredo");
+  if (h && h !== secret){
+    if (secret && !confirm("Esse link é de outra conversa. Trocar pra ela neste aparelho?")){ abrirOuEntrar(); return; }
+    convite = h; showEntrar(); return;
+  }
+  abrirOuEntrar();
+  function abrirOuEntrar(){
+    if (secret && myName) abrirSala().catch(e => { toast("Erro: " + e.message, 6000); store.del("segredo"); secret = null; showEntrar(); });
+    else { if (secret) convite = secret; showEntrar(); }
+  }
+})();
+</script>
+</body>
+</html>
