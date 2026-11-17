@@ -50,9 +50,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .marca{margin:0;font-size:44px;font-weight:700;letter-spacing:-.04em;line-height:1}
 #entrarSub{margin:10px 0 28px;color:var(--muted)}
 label{display:block;font-size:13px;color:var(--muted);margin:22px 0 2px}
-input[type=text]{width:100%;font:inherit;font-size:16px;padding:10px 0;border:0;border-bottom:1px solid var(--line);
+input[type=text],input[type=number],select{width:100%;font:inherit;font-size:16px;padding:10px 0;border:0;border-bottom:1px solid var(--line);
   border-radius:0;background:transparent;color:var(--ink)}
-input[type=text]:focus{outline:0;border-bottom-color:var(--ink)}
+input[type=text]:focus,input[type=number]:focus,select:focus{outline:0;border-bottom-color:var(--ink)}
+select{cursor:pointer}
+select option{background:var(--bg);color:var(--ink)}
+.sis{align-self:center;text-align:center;font-size:12px;color:var(--muted);max-width:320px;margin:14px 0 6px}
 .btn{display:block;width:100%;min-height:48px;margin-top:20px;border:0;border-radius:6px;padding:12px 16px;
   font-weight:600;background:var(--ink);color:var(--bg)}
 .btn.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
@@ -225,6 +228,31 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
     <input type="text" id="novoNome" maxlength="30" aria-label="Seu nome">
     <button class="btn sec" id="salvarNome">Salvar</button>
 
+    <h3>Mensagens temporárias</h3>
+    <p id="tempTxt">Desligado.</p>
+    <label for="tempSel" class="sr">Tempo até as mensagens sumirem</label>
+    <select id="tempSel">
+      <option value="0">Desligado</option>
+      <option value="300000">5 minutos</option>
+      <option value="3600000">1 hora</option>
+      <option value="28800000">8 horas</option>
+      <option value="86400000">24 horas</option>
+      <option value="604800000">7 dias</option>
+      <option value="outro">Outro tempo…</option>
+    </select>
+    <div class="linha" id="tempOutro" hidden>
+      <label for="tempNum" class="sr">Quantidade</label>
+      <input type="number" id="tempNum" min="1" max="999" inputmode="numeric" value="12">
+      <label for="tempUni" class="sr">Unidade</label>
+      <select id="tempUni">
+        <option value="60000">minutos</option>
+        <option value="3600000" selected>horas</option>
+        <option value="86400000">dias</option>
+      </select>
+    </div>
+    <button class="btn sec" id="tempAplicar">Aplicar</button>
+    <p>Vale pras mensagens novas, pra todo mundo da conversa. Elas somem da tela na hora certa e são apagadas do servidor quando alguém abrir o Z Chat.</p>
+
     <h3>Notificações</h3>
     <p id="notifTxt">Só chegam com o Z Chat aberto, mesmo minimizado.</p>
     <button class="btn sec" id="ativarNotif">Ativar</button>
@@ -393,6 +421,7 @@ async function abrirSala(){
   }, falhou);
   roomRef.child("on").on("value", presenca, falhou);
   callRef.on("value", s => { callVal = s.val(); onCall(callVal); }, falhou);
+  roomRef.child("cfg").on("value", onCfg, falhou);
   agenda();
   setTimeout(() => $("#texto").focus({ preventScroll: true }), 100);
 }
@@ -402,12 +431,51 @@ async function addMsg(k, v, isLive){
   const o = await unseal(v.c, "m");
   const t = typeof v.t === "number" ? v.t : now();
   const m = (o && typeof o.x === "string")
-    ? { k, d: String(o.d || ""), n: String(o.n || "?").slice(0, 30), x: o.x.slice(0, MAX_TXT), t }
-    : { k, ruim: true, t };
+    ? { k, d: String(o.d || ""), n: String(o.n || "?").slice(0, 30), x: o.x.slice(0, MAX_TXT), t,
+        e: typeof o.e === "number" ? o.e : 0, sis: !!o.s }
+    : { k, ruim: true, t, e: typeof v.e === "number" ? v.e : 0 };
   msgs.set(k, m);
   if (!oldestKey || k < oldestKey) oldestKey = k;
   agenda();
-  if (isLive && !m.ruim && !meu(m)) avisarMsg(m);
+  if (isLive && !m.ruim && !meu(m) && !vencida(m)) avisarMsg(m);
+}
+const vencida = m => m.e > 0 && m.e <= now();
+
+/* ================= mensagens temporárias ================= */
+// O tempo escolhido fica em salas/<id>/cfg, cifrado. Cada mensagem nova leva
+// a hora em que vence: dentro da cifra (pra esconder na tela) e em "e" aberto
+// (pra qualquer aparelho com o app aberto conseguir apagar do servidor).
+let ttl = 0, temCfg = false, limpezaT = null, vencT = null;
+const TTL_MAX = 90 * 864e5;
+function fmtDur(ms){
+  if (ms < 36e5 || ms % 36e5) return Math.round(ms / 6e4) + " min";
+  if (ms < 2 * 864e5 || ms % 864e5) return ms / 36e5 + " h";
+  return ms / 864e5 + " dias";
+}
+async function onCfg(s){
+  const v = s.val();
+  temCfg = !!v;
+  const o = v ? await unseal(v.c, "cfg") : null;
+  const novo = o && typeof o.ttl === "number" && o.ttl >= 0 && o.ttl <= TTL_MAX ? o.ttl : 0;
+  ttl = novo;
+  mostraStatus(); textoTemp();
+  if (temCfg){ limpar(); clearInterval(limpezaT); limpezaT = setInterval(limpar, 5 * 6e4); }
+}
+async function limpar(){
+  if (!mRef || !conectado) return;
+  try {
+    const s = await mRef.orderByChild("e").startAt(1).endAt(now()).once("value");
+    const upd = {}; s.forEach(c => { upd[c.key] = null; });
+    if (Object.keys(upd).length) await mRef.update(upd);
+  } catch (e){ console.error(e); }
+}
+async function mudaTtl(ms){
+  if (ms === ttl) return;
+  await roomRef.child("cfg").set({ c: await seal({ ttl: ms }, "cfg"), t: firebase.database.ServerValue.TIMESTAMP });
+  const txt = ms
+    ? myName + " ativou as mensagens temporárias: as novas somem depois de " + fmtDur(ms) + "."
+    : myName + " desativou as mensagens temporárias.";
+  await mRef.push({ c: await seal({ n: myName, d: autor, x: txt, s: 1 }, "m"), t: firebase.database.ServerValue.TIMESTAMP });
 }
 const meu = m => m.d === autor;
 
@@ -450,8 +518,12 @@ function render(){
   const L = $("#lista");
   const noFim = forceBottom || L.scrollHeight - L.scrollTop - L.clientHeight < 90;
   const doFim = L.scrollHeight - L.scrollTop;
-  const arr = [...msgs.values()].sort((a, b) => a.k < b.k ? -1 : a.k > b.k ? 1 : 0);
-  const outros = new Set(arr.filter(m => !m.ruim && !meu(m)).map(m => m.d));
+  const arr = [...msgs.values()].filter(m => !vencida(m)).sort((a, b) => a.k < b.k ? -1 : a.k > b.k ? 1 : 0);
+  const outros = new Set(arr.filter(m => !m.ruim && !m.sis && !meu(m)).map(m => m.d));
+  // re-desenha quando a próxima mensagem vencer
+  clearTimeout(vencT);
+  const prox = Math.min(...arr.filter(m => m.e > 0).map(m => m.e));
+  if (isFinite(prox)) vencT = setTimeout(() => { agenda(); limpar(); },Math.min(Math.max(prox - now() + 50, 50), 2 ** 31 - 1));
   const f = document.createDocumentFragment();
 
   if (hasMore){
@@ -467,6 +539,10 @@ function render(){
   for (const m of arr){
     const r = rotuloDia(m.t);
     if (r !== dia){ dia = r; ult = null; const d = document.createElement("div"); d.className = "dia"; d.textContent = r; f.append(d); }
+    if (m.sis){
+      const d = document.createElement("div"); d.className = "sis"; d.textContent = m.x; f.append(d);
+      ult = null; continue;
+    }
     const eu = !m.ruim && meu(m), quemK = m.ruim ? "?" : m.d;
     const novoGrupo = quemK !== ult;
     if (!eu && novoGrupo && outros.size > 1 && !m.ruim){
@@ -503,8 +579,9 @@ async function enviar(){
   const ref = mRef.push();
   pend.add(ref.key); forceBottom = true;
   try {
-    const c = await seal({ n: myName, d: autor, x: txt }, "m");
-    await ref.set({ c, t: firebase.database.ServerValue.TIMESTAMP });
+    const e = ttl ? Math.round(now() + ttl) : 0;
+    const c = await seal(e ? { n: myName, d: autor, x: txt, e } : { n: myName, d: autor, x: txt }, "m");
+    await ref.set(e ? { c, t: firebase.database.ServerValue.TIMESTAMP, e } : { c, t: firebase.database.ServerValue.TIMESTAMP });
   } catch (e){
     msgs.delete(ref.key); ta.value = txt; cresce();
     toast("Não enviou: " + e.message, 5000);
@@ -534,10 +611,11 @@ async function presenca(s){
 }
 function mostraStatus(){
   const s = $("#status");
+  const temp = ttl ? " · somem em " + fmtDur(ttl) : "";
   if (!conectado){ s.textContent = "sem conexão… tentando de novo"; return; }
-  if (!onlineNomes.length){ s.textContent = "ninguém mais online agora"; return; }
+  if (!onlineNomes.length){ s.textContent = "ninguém mais online agora" + temp; return; }
   s.innerHTML = '<span class="ponto" aria-hidden="true"></span>';
-  s.append(onlineNomes.join(", ") + " online");
+  s.append(onlineNomes.join(", ") + " online" + temp);
 }
 
 /* ================= notificações ================= */
@@ -606,12 +684,41 @@ document.querySelectorAll(".instBt").forEach(b => b.onclick = async () => {
 });
 mostraInstalar();
 
+/* ================= ajustes: temporárias ================= */
+function textoTemp(){
+  $("#tempTxt").textContent = ttl
+    ? "Ligado: as mensagens novas somem depois de " + fmtDur(ttl) + "."
+    : "Desligado. As mensagens ficam guardadas.";
+  const sel = $("#tempSel"), igual = [...sel.options].find(o => o.value === String(ttl));
+  if (!dlg.open){
+    sel.value = igual ? String(ttl) : "outro";
+    if (!igual && ttl){
+      const u = ttl % 864e5 === 0 ? 864e5 : ttl % 36e5 === 0 ? 36e5 : 6e4;
+      $("#tempUni").value = String(u); $("#tempNum").value = String(ttl / u);
+    }
+    $("#tempOutro").hidden = sel.value !== "outro";
+  }
+}
+$("#tempSel").onchange = () => { $("#tempOutro").hidden = $("#tempSel").value !== "outro"; };
+$("#tempAplicar").onclick = async () => {
+  const v = $("#tempSel").value;
+  let ms = Number(v);
+  if (v === "outro"){
+    const n = Math.floor(Number($("#tempNum").value));
+    ms = n * Number($("#tempUni").value);
+    if (!n || n < 1 || ms < 6e4 || ms > TTL_MAX){ toast("Escolha entre 1 minuto e 90 dias."); return; }
+  }
+  if (ms === ttl){ toast("Já está assim."); return; }
+  try { await mudaTtl(ms); toast(ms ? "Ativado: " + fmtDur(ms) + "." : "Desativado."); }
+  catch (e){ toast("Não salvou: " + e.message); }
+};
+
 /* ================= ajustes ================= */
 const dlg = $("#ajustes");
 function abrirAjustes(){
   $("#novoNome").value = myName;
   $("#compartilhar").hidden = !navigator.share;
-  textoNotif();
+  textoNotif(); textoTemp();
   dlg.showModal();
 }
 $("#abrirAjustes").onclick = abrirAjustes;
