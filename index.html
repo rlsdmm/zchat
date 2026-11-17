@@ -60,7 +60,10 @@ input[type=text]:focus{outline:0;border-bottom-color:var(--ink)}
 .btn:disabled{opacity:.45;cursor:default}
 .separa{height:1px;background:var(--line);margin:32px 0 6px}
 .erro{color:var(--danger);font-size:14px;margin-top:10px;min-height:1em}
-.nota{font-size:13px;color:var(--muted);margin-top:28px}
+.nota{font-size:13px;color:var(--muted);margin-top:36px;padding-top:20px;border-top:1px solid var(--line)}
+.nota strong{display:block;color:var(--ink);font-weight:600;margin-bottom:4px}
+.nota p{margin:0}
+.instTxt b{color:var(--ink);font-weight:600}
 
 /* ---------- conversa ---------- */
 #conversa{flex:1;display:flex;flex-direction:column;min-height:0;width:100%;max-width:720px;margin:0 auto}
@@ -155,7 +158,11 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
       <button class="btn sec" id="entrarLink">Entrar</button>
     </div>
     <div class="erro" id="erroEntrar" role="alert"></div>
-    <p class="nota">A chave fica no link. O servidor só guarda texto cifrado.</p>
+    <div class="instalar nota" hidden>
+      <strong>Instalar como app</strong>
+      <p class="instTxt"></p>
+      <button class="btn sec instBt" hidden>Instalar</button>
+    </div>
 </main>
 
 <!-- conversa -->
@@ -206,6 +213,12 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
     <div class="linha">
       <button class="btn" id="copiarLink">Copiar link</button>
       <button class="btn sec" id="compartilhar" hidden>Compartilhar</button>
+    </div>
+
+    <div class="instalar" hidden>
+      <h3>Instalar como app</h3>
+      <p class="instTxt"></p>
+      <button class="btn sec instBt" hidden>Instalar</button>
     </div>
 
     <h3>Seu nome</h3>
@@ -561,6 +574,37 @@ function textoNotif(){
   else { b.textContent = "Ativar notificações"; b.disabled = false; }
 }
 $("#ativarNotif").onclick = async () => { try { await Notification.requestPermission(); } catch {} textoNotif(); };
+
+/* ================= instalar ================= */
+let pedidoInstalar = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); pedidoInstalar = e; mostraInstalar(); });
+window.addEventListener("appinstalled", () => { pedidoInstalar = null; mostraInstalar(); toast("Instalado."); });
+function passosInstalar(){
+  const ua = navigator.userAgent;
+  const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const edge = /Edg\//.test(ua), chrome = /Chrome\//.test(ua) && !edge;
+  if (ios) return "No Safari, toque em <b>Compartilhar</b> (o quadrado com a seta) e depois em <b>Adicionar à Tela de Início</b>. Na primeira vez que abrir pelo ícone, cole o link da conversa de novo.";
+  if (/Android/.test(ua)) return "No Chrome, toque no menu <b>⋮</b> e depois em <b>Instalar app</b> (ou <b>Adicionar à tela inicial</b>).";
+  if (/Macintosh/.test(ua) && !chrome && !edge && /Safari\//.test(ua)) return "No Safari, vá em <b>Arquivo → Adicionar ao Dock</b>.";
+  if (edge) return "No Edge, clique no menu <b>…</b> → <b>Apps</b> → <b>Instalar este site como um app</b>.";
+  if (chrome) return "No Chrome, clique no ícone de instalar no fim da barra de endereço, ou no menu <b>⋮</b> → <b>Transmitir, salvar e compartilhar</b> → <b>Instalar página como app</b>.";
+  return "Este navegador não instala sites como app. Abra o Z Chat no Chrome ou no Edge pra instalar.";
+}
+function mostraInstalar(){
+  const instalado = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  document.querySelectorAll(".instalar").forEach(el => {
+    el.hidden = !!instalado;
+    el.querySelector(".instTxt").innerHTML = pedidoInstalar ? "Abre numa janela própria, com ícone, sem a barra do navegador." : passosInstalar();
+    el.querySelector(".instBt").hidden = !pedidoInstalar;
+  });
+}
+document.querySelectorAll(".instBt").forEach(b => b.onclick = async () => {
+  if (!pedidoInstalar) return;
+  pedidoInstalar.prompt();
+  await pedidoInstalar.userChoice.catch(() => {});
+  pedidoInstalar = null; mostraInstalar();
+});
+mostraInstalar();
 
 /* ================= ajustes ================= */
 const dlg = $("#ajustes");
