@@ -104,7 +104,32 @@ select option{background:var(--bg);color:var(--ink)}
 
 /* ---------- chamada ---------- */
 #chamada{position:fixed;inset:0;background:#0b0b0b;color:#f2f2f0;z-index:20;display:flex;flex-direction:column}
-#remoto{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#0b0b0b}
+#grade{position:absolute;inset:0;display:grid;gap:2px;grid-template:1fr/1fr;background:#0b0b0b}
+#chamada.grupo #grade{top:calc(48px + env(safe-area-inset-top));bottom:calc(98px + env(safe-area-inset-bottom))}
+#grade[data-n="2"]{grid-template:1fr 1fr/1fr}
+#grade[data-n="3"],#grade[data-n="4"]{grid-template:1fr 1fr/1fr 1fr}
+#grade[data-n="5"],#grade[data-n="6"]{grid-template:repeat(3,1fr)/1fr 1fr}
+#grade[data-n="3"] .tile:last-child,#grade[data-n="5"] .tile:last-child{grid-column:1/-1}
+@media (min-aspect-ratio: 1/1){
+  #grade[data-n="2"]{grid-template:1fr/1fr 1fr}
+  #grade[data-n="3"]{grid-template:1fr/repeat(3,1fr)}
+  #grade[data-n="3"] .tile:last-child{grid-column:auto}
+  #grade[data-n="5"],#grade[data-n="6"]{grid-template:1fr 1fr/repeat(3,1fr)}
+}
+.tile{position:relative;overflow:hidden;background:#161616;min-width:0;min-height:0}
+.tile video{width:100%;height:100%;object-fit:cover;display:block}
+.tile.eu video{transform:scaleX(-1)}
+.tile.eu.reto video{transform:none}
+.tile .rot{position:absolute;left:8px;bottom:8px;font-size:12px;background:rgba(0,0,0,.5);padding:2px 8px;border-radius:4px}
+.tile .est{position:absolute;inset:0;display:grid;place-items:center;font-size:13px;opacity:.7}
+#grade[data-n="1"] .rot{display:none}
+#chamada.grupo .ch-botoes{background:none}
+#chamada.grupo .ch-info{padding:calc(14px + env(safe-area-inset-top)) 16px 0}
+#chamada.grupo .ch-info strong{display:inline;font-size:15px}
+#chamada.grupo .ch-info span{margin-left:8px}
+#barraCh{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 8px 2px 16px;
+  border-bottom:1px solid var(--line);background:var(--soft);font-size:14px}
+#barraCh .txtbt{font-weight:600}
 #local{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;width:26vw;max-width:140px;aspect-ratio:3/4;
   object-fit:cover;border-radius:8px;background:#1a1a1a;z-index:2}
 #local.espelho{transform:scaleX(-1)}
@@ -178,6 +203,7 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
     <button class="txtbt" id="ligar" aria-label="Fazer videochamada">Ligar</button>
     <button class="txtbt" id="abrirAjustes">Ajustes</button>
   </header>
+  <div id="barraCh" hidden><span id="barraTxt"></span><button class="txtbt" id="entrarCh">Entrar</button></div>
   <div id="lista" role="log" aria-label="Mensagens" tabindex="0"></div>
   <form class="compor" id="formEnviar">
     <label for="texto" class="sr">Mensagem</label>
@@ -188,7 +214,7 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
 
 <!-- chamada -->
 <section id="chamada" hidden aria-label="Videochamada">
-  <video id="remoto" autoplay playsinline></video>
+  <div id="grade" data-n="0"></div>
   <video id="local" autoplay playsinline muted class="espelho"></video>
   <div class="ch-info"><strong id="chNome"></strong><span id="chEstado" aria-live="polite"></span></div>
   <div class="ch-botoes" id="chTocando">
@@ -319,7 +345,7 @@ if (!autor){ autor = b64u(rand(9)); store.set("autor", autor); }
 const sessao = b64u(rand(9));            // muda a cada abertura (presença e chamada)
 let myName = store.get("nome") || "";
 let secret = null, roomId = null, key = null;
-let db = null, roomRef = null, mRef = null, callRef = null;
+let db = null, roomRef = null, mRef = null;
 let serverOff = 0; const now = () => Date.now() + serverOff;
 
 /* ================= criptografia ================= */
@@ -398,7 +424,6 @@ async function abrirSala(){
   db = firebase.database();
   roomRef = db.ref("salas/" + roomId);
   mRef = roomRef.child("m");
-  callRef = roomRef.child("call");
 
   db.ref(".info/serverTimeOffset").on("value", s => { serverOff = s.val() || 0; });
   db.ref(".info/connected").on("value", s => {
@@ -416,7 +441,7 @@ async function abrirSala(){
     setTimeout(() => { live = true; forceBottom = true; agenda(); }, 0);
   }, falhou);
   roomRef.child("on").on("value", presenca, falhou);
-  callRef.on("value", s => { callVal = s.val(); onCall(callVal); }, falhou);
+  iniciarChamadas();
   roomRef.child("cfg").on("value", onCfg, falhou);
   agenda();
   setTimeout(() => $("#texto").focus({ preventScroll: true }), 100);
@@ -764,30 +789,273 @@ function tocar(tipo){
 function pararSom(){ clearInterval(somT); somT = null; navigator.vibrate?.(0); }
 
 /* ================= videochamada ================= */
-// A oferta/resposta (que inclui a "impressão digital" da criptografia do vídeo)
-// também vai cifrada com a chave da conversa, então o servidor não consegue
-// se meter no meio da chamada.
+// Chamada em grupo (até 6 pessoas), cada aparelho ligado direto em cada um dos
+// outros, sem servidor de vídeo. Tudo fica em salas/<id>/chamada:
+//   id           quem começou e quando (pra tocar nos outros)
+//   membros/<s>  quem está na chamada agora (some sozinho se o aparelho cair)
+//   sinal/<s>    caixa de entrada de ofertas e respostas da sessão <s>
+// Ofertas e respostas vão cifradas e endereçadas (o destinatário entra na
+// verificação da cifra), então o servidor não lê, não troca e não redireciona.
+// Quem entra depois liga pra quem já estava; assim dois nunca ligam um pro outro ao mesmo tempo.
+const MAX_CH = 6;
 let call = { estado: "parado" };
-let callVal = null;
-const remoto = $("#remoto"), local = $("#local");
+let chRef = null, membros = {}, chId = null, recusada = null, tocouId = null;
+const peers = new Map(), nomesCh = new Map(), falhou = new Set();
+const local = $("#local"), grade = $("#grade");
+const tileLocal = document.createElement("div");
+const localTileV = document.createElement("video");
+tileLocal.className = "tile eu";
+localTileV.autoplay = true; localTileV.playsInline = true; localTileV.muted = true;
+{ const r = document.createElement("span"); r.className = "rot"; r.textContent = "Você"; tileLocal.append(localTileV, r); }
+
+const naChamada = () => call.estado === "chamando" || call.estado === "ativa";
+const outrosMembros = () => Object.keys(membros).filter(k => k !== sessao && nomesCh.has(k));
+const nomeDe = k => nomesCh.get(k) || "Alguém";
+
+function iniciarChamadas(){
+  chRef = roomRef.child("chamada");
+  chRef.child("membros").on("value", s => { membros = s.val() || {}; onMembros(); });
+  chRef.child("id").on("value", async s => {
+    const v = s.val(), o = v ? await unseal(v.c, "ci") : null;
+    chId = o && typeof v.t === "number" ? { id: String(o.id), n: String(o.n || "?").slice(0, 30), t: v.t } : null;
+    onMembros();
+  });
+  chRef.child("sinal/" + sessao).on("child_added", s => { const v = s.val(); s.ref.remove(); if (v) onSinal(v); });
+}
+
+async function onMembros(){
+  await Promise.all(Object.entries(membros).map(async ([k, v]) => {
+    if (nomesCh.has(k) || !v || typeof v.c !== "string") return;
+    const o = await unseal(v.c, "cm");
+    if (o) nomesCh.set(k, String(o.n || "?").slice(0, 30));
+  }));
+  const outros = outrosMembros();
+
+  if (naChamada()){
+    for (const k of [...peers.keys()]) if (!membros[k]){
+      tirarPeer(k);
+      if (peers.size) toast(nomeDe(k) + " saiu.");
+    }
+    for (const k of outros) if (!peers.has(k) && !falhou.has(k) && entrouAntes(k)) conectar(k);
+    if (call.estado === "ativa" && !outros.length) { sair("Chamada encerrada."); return; }
+    atualizaGrade();
+  } else if (call.estado === "parado"){
+    if (outros.length && chId && chId.id !== recusada && chId.id !== tocouId && now() - chId.t < 60000){
+      tocouId = chId.id;
+      call = { estado: "tocando", nome: chId.n, facing: "user" };
+      telaChamada(); tocar("entrando");
+      if (document.hidden) notificar(chId.n, "está chamando no Z Chat", "zchat-chamada");
+      call.esperaT = setTimeout(() => { if (call.estado === "tocando") sair("Chamada perdida."); }, 45000);
+    }
+  } else if (call.estado === "tocando" && !outros.length){
+    sair("Chamada perdida.");
+  }
+  barraChamada();
+}
+// k entrou antes de mim? então sou eu que ligo pra k
+function entrouAntes(k){
+  const tk = membros[k]?.t || 0;
+  return tk < call.t || (tk === call.t && k < sessao);
+}
+
+function barraChamada(){
+  const n = outrosMembros().length, b = $("#barraCh");
+  b.hidden = !(call.estado === "parado" && n);
+  if (!b.hidden) $("#barraTxt").textContent = "Chamada acontecendo · " + n + (n === 1 ? " pessoa" : " pessoas");
+}
+
+async function entrar(){
+  if (naChamada() || !chRef) return;
+  if (!conectado){ toast("Sem conexão agora."); return; }
+  const outros = outrosMembros();
+  if (outros.length >= MAX_CH){ toast("A chamada está cheia (" + MAX_CH + " pessoas)."); return; }
+  liberaAudio(); pararSom(); clearTimeout(call.esperaT);
+  const c = call = { estado: "chamando", facing: "user", t: Math.round(now()) };
+  telaChamada();
+  try {
+    c.stream = await pegaMidia();
+    if (call !== c){ c.stream.getTracks().forEach(t => t.stop()); return; }
+    mostraLocal();
+    if (!outros.length){
+      const id = b64u(rand(9));
+      tocouId = id;
+      await chRef.update({ id: { c: await seal({ id, n: myName }, "ci"), t: Math.round(now()) }, sinal: null });
+      tocar("chamando");
+      c.esperaT = setTimeout(() => { if (call === c && !peers.size) sair("Ninguém atendeu."); }, 45000);
+    }
+    const eu = chRef.child("membros/" + sessao);
+    await eu.onDisconnect().remove();
+    await chRef.child("sinal/" + sessao).onDisconnect().remove();
+    await eu.set({ c: await seal({ n: myName }, "cm"), t: c.t });
+    telaChamada();
+  } catch (e){
+    console.error(e);
+    sair(e.name === "NotAllowedError" ? "Precisa liberar câmera e microfone." : "Não deu pra entrar: " + e.message);
+  }
+}
+
+function novoPeer(k, ofertante){
+  const pc = new RTCPeerConnection({ iceServers: ICE });
+  const tile = document.createElement("div"); tile.className = "tile";
+  const v = document.createElement("video"); v.autoplay = true; v.playsInline = true;
+  const rot = document.createElement("span"); rot.className = "rot"; rot.textContent = nomeDe(k);
+  const est = document.createElement("span"); est.className = "est"; est.textContent = "conectando…";
+  tile.append(v, est, rot);
+  const p = { k, pc, tile, v, est, quedaT: null };
+  peers.set(k, p);
+  call.stream.getTracks().forEach(t => pc.addTrack(t, call.stream));
+  if (ofertante && !call.stream.getVideoTracks().length) pc.addTransceiver("video", { direction: "recvonly" });
+  pc.ontrack = e => {
+    const s = e.streams[0] || new MediaStream([e.track]);
+    if (v.srcObject !== s) v.srcObject = s;
+    v.play().catch(() => {});
+  };
+  const muda = () => {
+    if (peers.get(k) !== p) return;
+    const s = pc.connectionState || pc.iceConnectionState;
+    if (s === "connected" || s === "completed"){
+      clearTimeout(p.quedaT); est.hidden = true;
+      if (call.estado !== "ativa"){
+        pararSom(); clearTimeout(call.esperaT);
+        call.estado = "ativa"; if (!call.inicio) call.inicio = Date.now();
+        clearInterval(call.relogioT); call.relogioT = setInterval(relogio, 1000);
+      }
+      ajustaQualidade(); telaChamada();
+    } else if (s === "disconnected"){
+      est.hidden = false; est.textContent = "reconectando…";
+      clearTimeout(p.quedaT);
+      p.quedaT = setTimeout(() => falha(k, "A conexão com " + nomeDe(k) + " caiu."), 15000);
+    } else if (s === "failed"){
+      falha(k, "Não conectou com " + nomeDe(k) + ". Alguma rede pode estar bloqueando.");
+    }
+  };
+  pc.onconnectionstatechange = muda;
+  pc.oniceconnectionstatechange = muda;
+  atualizaGrade();
+  return p;
+}
+function falha(k, msg){ falhou.add(k); tirarPeer(k); toast(msg, 5000); }
+
+async function conectar(k){
+  const p = novoPeer(k, true), pc = p.pc;
+  try {
+    await pc.setLocalDescription(await pc.createOffer());
+    await esperaIce(pc, 3000);
+    if (peers.get(k) !== p) return;
+    await enviarSinal(k, { tipo: "offer", sdp: pc.localDescription.sdp });
+  } catch (e){ console.error(e); tirarPeer(k); }
+}
+async function enviarSinal(para, obj){
+  obj.de = sessao; obj.ts = Date.now();
+  await chRef.child("sinal/" + para).push({ c: await seal(obj, "cs|" + para) });
+}
+async function onSinal(v){
+  if (!naChamada() || typeof v.c !== "string") return;
+  const o = await unseal(v.c, "cs|" + sessao);
+  if (!o || typeof o.sdp !== "string" || typeof o.de !== "string" || Math.abs(Date.now() - o.ts) > 120000) return;
+  const de = o.de;
+  if (de === sessao || !naChamada()) return;
+  if (o.tipo === "offer"){
+    if (peers.has(de)) tirarPeer(de);
+    falhou.delete(de);
+    const p = novoPeer(de, false);
+    try {
+      await p.pc.setRemoteDescription({ type: "offer", sdp: o.sdp });
+      await p.pc.setLocalDescription(await p.pc.createAnswer());
+      await esperaIce(p.pc, 3000);
+      if (peers.get(de) !== p) return;
+      await enviarSinal(de, { tipo: "answer", sdp: p.pc.localDescription.sdp });
+    } catch (e){ console.error(e); tirarPeer(de); }
+  } else if (o.tipo === "answer"){
+    const p = peers.get(de);
+    if (!p || p.pc.signalingState !== "have-local-offer") return;
+    try { await p.pc.setRemoteDescription({ type: "answer", sdp: o.sdp }); }
+    catch (e){ console.error(e); tirarPeer(de); }
+  }
+}
+
+function tirarPeer(k){
+  const p = peers.get(k); if (!p) return;
+  peers.delete(k); clearTimeout(p.quedaT);
+  try { p.pc.close(); } catch {}
+  p.tile.remove();
+  atualizaGrade();
+}
+
+async function sair(msg){
+  const c = call;
+  if (c.estado === "parado") return;
+  call = { estado: "parado" };
+  pararSom(); clearTimeout(c.esperaT); clearInterval(c.relogioT);
+  for (const p of peers.values()){ clearTimeout(p.quedaT); try { p.pc.close(); } catch {} p.tile.remove(); }
+  peers.clear(); falhou.clear();
+  c.stream?.getTracks().forEach(t => t.stop());
+  local.srcObject = null; localTileV.srcObject = null;
+  telaChamada();
+  if (msg) toast(msg);
+  if (c.estado === "tocando"){ recusada = chId?.id || null; barraChamada(); return; }
+  barraChamada();
+  if (!chRef) return;
+  const eu = chRef.child("membros/" + sessao), caixa = chRef.child("sinal/" + sessao);
+  try {
+    eu.onDisconnect().cancel(); caixa.onDisconnect().cancel();
+    await eu.remove(); await caixa.remove();
+    const s = await chRef.child("membros").once("value");
+    if (!s.exists()) await chRef.remove();          // o último a sair limpa tudo
+  } catch (e){ console.error(e); }
+}
+
+// Em grupo, cada aparelho manda o vídeo várias vezes: baixa pra ~360p.
+function ajustaQualidade(){
+  const grupo = peers.size >= 2;
+  for (const p of peers.values()) for (const s of p.pc.getSenders()){
+    if (!s.track || s.track.kind !== "video") continue;
+    const prm = s.getParameters();
+    if (!prm.encodings || !prm.encodings.length) continue;
+    prm.encodings[0].maxBitrate = grupo ? 350000 : 1500000;
+    prm.encodings[0].scaleResolutionDownBy = grupo ? 2 : 1;
+    prm.encodings[0].maxFramerate = grupo ? 20 : 30;
+    s.setParameters(prm).catch(() => {});
+  }
+}
+
+function atualizaGrade(){
+  const n = peers.size, comLocal = n >= 2;
+  const tiles = [...peers.values()].map(p => p.tile);
+  if (comLocal) tiles.push(tileLocal);
+  const mudou = tiles.length !== grade.children.length || tiles.some((t, i) => grade.children[i] !== t);
+  if (mudou) grade.replaceChildren(...tiles);
+  grade.dataset.n = tiles.length;
+  const temVideo = !!call.stream?.getVideoTracks().length;
+  local.hidden = comLocal || !temVideo;
+  if (comLocal && localTileV.srcObject !== call.stream) localTileV.srcObject = call.stream || null;
+  for (const p of peers.values()) p.tile.querySelector(".rot").textContent = nomeDe(p.k);
+  if (mudou) tiles.forEach(t => t.querySelector("video").play().catch(() => {}));
+  ajustaQualidade(); telaChamada();
+}
 
 function telaChamada(){
   const c = call, el = $("#chamada");
   el.hidden = c.estado === "parado";
   if (el.hidden) return;
-  $("#chNome").textContent = c.nome || "";
-  const tocando = c.estado === "tocando";
+  const tocando = c.estado === "tocando", n = peers.size;
   $("#chTocando").hidden = !tocando; $("#chControles").hidden = tocando;
   el.classList.toggle("ativa", c.estado === "ativa");
-  const txt = {
-    chamando: onlineNomes.length ? "chamando…" : "chamando… (ninguém online agora)",
-    tocando: "está te ligando",
-    conectando: "conectando…",
-    reconectando: "reconectando…",
-  }[c.estado];
-  if (txt) $("#chEstado").textContent = txt;
+  el.classList.toggle("grupo", n >= 2);
+  let nome;
+  if (tocando) nome = c.nome;
+  else if (n >= 2) nome = (n + 1) + " pessoas";
+  else if (n === 1) nome = nomeDe([...peers.keys()][0]);
+  else nome = outrosMembros().map(nomeDe).join(", ") || onlineNomes.join(", ") || "Chamada";
+  $("#chNome").textContent = nome;
+  if (tocando) $("#chEstado").textContent = "está chamando";
+  else if (c.estado === "chamando"){
+    $("#chEstado").textContent = outrosMembros().length ? "conectando…"
+      : onlineNomes.length ? "chamando…" : "chamando… (ninguém online agora)";
+  } else relogio();
 }
 function relogio(){
+  if (!call.inicio) return;
   const s = Math.floor((Date.now() - call.inicio) / 1000);
   $("#chEstado").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 }
@@ -808,151 +1076,14 @@ function esperaIce(pc, ms){
     pc.addEventListener("icegatheringstatechange", () => { if (pc.iceGatheringState === "complete"){ clearTimeout(t); r(); } });
   });
 }
-function novaConexao(){
-  const pc = new RTCPeerConnection({ iceServers: ICE });
-  pc.ontrack = e => {
-    const st = e.streams[0] || new MediaStream([e.track]);
-    if (remoto.srcObject !== st) remoto.srcObject = st;
-    remoto.play().catch(() => {});
-  };
-  let quedaT = null;
-  const muda = () => {
-    if (call.pc !== pc) return;
-    const s = pc.connectionState || pc.iceConnectionState;
-    if (s === "connected" || s === "completed"){
-      clearTimeout(quedaT);
-      if (call.estado !== "ativa"){
-        if (!call.inicio) call.inicio = Date.now();
-        call.estado = "ativa"; telaChamada(); relogio();
-        clearInterval(call.relogioT); call.relogioT = setInterval(relogio, 1000);
-      }
-    } else if (s === "disconnected"){
-      if (call.estado === "ativa"){ clearInterval(call.relogioT); call.estado = "reconectando"; telaChamada(); }
-      clearTimeout(quedaT); quedaT = setTimeout(() => { if (call.pc === pc) encerrar(true, "A conexão caiu."); }, 15000);
-    } else if (s === "failed"){
-      encerrar(true, "Não conseguiu conectar o vídeo. Alguma rede pode estar bloqueando.");
-    }
-  };
-  pc.onconnectionstatechange = muda;
-  pc.oniceconnectionstatechange = muda;
-  return pc;
-}
-function mostraLocal(stream){
-  local.srcObject = stream; local.hidden = !stream.getVideoTracks().length;
+function mostraLocal(){
+  const s = call.stream;
+  local.srcObject = s; local.hidden = !s.getVideoTracks().length;
   local.play().catch(() => {});
   navigator.mediaDevices.enumerateDevices().then(ds => {
-    $("#btVirar").hidden = ds.filter(d => d.kind === "videoinput").length < 2 || !stream.getVideoTracks().length;
+    $("#btVirar").hidden = ds.filter(d => d.kind === "videoinput").length < 2 || !s.getVideoTracks().length;
   }).catch(() => {});
   botoesMidia();
-}
-
-async function ligar(){
-  if (call.estado !== "parado" || !callRef) return;
-  if (!conectado){ toast("Sem conexão agora."); return; }
-  liberaAudio();
-  call = { estado: "chamando", nome: onlineNomes.join(", ") || "Ligando", papel: "liga", facing: "user" };
-  telaChamada();
-  try {
-    call.stream = await pegaMidia();
-    if (call.estado !== "chamando") { call.stream.getTracks().forEach(t => t.stop()); return; }
-    mostraLocal(call.stream);
-    const pc = call.pc = novaConexao();
-    call.stream.getTracks().forEach(t => pc.addTrack(t, call.stream));
-    if (!call.stream.getVideoTracks().length) pc.addTransceiver("video", { direction: "recvonly" });
-    await pc.setLocalDescription(await pc.createOffer());
-    await esperaIce(pc, 3000);
-    if (call.pc !== pc) return;
-    const o = await seal({ n: myName, sdp: pc.localDescription.sdp, ts: Date.now() }, "o");
-    const val = { from: sessao, o, t: now() };
-    const res = await callRef.transaction(cur => {
-      if (cur && (cur.a || now() - (cur.t || 0) < 50000)) return;   // já tem chamada rolando
-      return val;
-    });
-    if (!res.committed){ encerrar(false, "Já tem uma chamada acontecendo."); return; }
-    callRef.onDisconnect().remove();
-    tocar("chamando");
-    call.esperaT = setTimeout(() => { if (call.estado === "chamando") encerrar(true, "Ninguém atendeu."); }, 45000);
-  } catch (e){
-    console.error(e);
-    encerrar(false, e.name === "NotAllowedError" ? "Precisa liberar câmera e microfone." : "Não deu pra ligar: " + e.message);
-  }
-}
-
-async function onCall(v){
-  if (!v){
-    if (call.estado === "parado") return;
-    const msg = call.estado === "tocando" ? "Chamada perdida." : call.estado === "chamando" ? "Não atendeu." : "Chamada encerrada.";
-    encerrar(false, msg);
-    return;
-  }
-  if (call.estado === "parado"){
-    if (v.from === sessao){ callRef.remove(); return; }         // sobra de uma chamada minha
-    if (v.a) return;                                             // outros já estão em chamada
-    if (now() - (v.t || 0) > 50000) return;
-    const o = await unseal(v.o, "o");
-    if (!o || typeof o.sdp !== "string" || Math.abs(Date.now() - o.ts) > 120000) return;
-    if (call.estado !== "parado" || !callVal || callVal.from !== v.from || callVal.a) return;
-    call = { estado: "tocando", de: v.from, oferta: o, nome: String(o.n || "?").slice(0, 30), papel: "atende", facing: "user" };
-    telaChamada(); tocar("entrando");
-    if (document.hidden) notificar(call.nome, "está te ligando no Z Chat", "papo-chamada");
-    return;
-  }
-  if (call.estado === "chamando" && v.from === sessao && v.a){
-    const a = await unseal(v.a, "a");
-    if (!a || !call.pc || call.pc.signalingState !== "have-local-offer") return;
-    pararSom(); clearTimeout(call.esperaT);
-    call.estado = "conectando"; call.nome = String(a.n || call.nome).slice(0, 30); telaChamada();
-    try { await call.pc.setRemoteDescription({ type: "answer", sdp: a.sdp }); }
-    catch (e){ encerrar(true, "Não deu pra conectar: " + e.message); }
-    return;
-  }
-  if (call.estado === "tocando" && (v.from !== call.de || (v.a && v.by !== sessao))){
-    encerrar(false, v.a ? "Atendida em outro aparelho." : null);
-  }
-}
-
-async function atender(){
-  if (call.estado !== "tocando") return;
-  liberaAudio(); pararSom();
-  const c = call; c.estado = "conectando"; telaChamada();
-  try {
-    c.stream = await pegaMidia();
-    if (call !== c){ c.stream.getTracks().forEach(t => t.stop()); return; }
-    mostraLocal(c.stream);
-    const pc = c.pc = novaConexao();
-    await pc.setRemoteDescription({ type: "offer", sdp: c.oferta.sdp });
-    c.stream.getTracks().forEach(t => pc.addTrack(t, c.stream));
-    await pc.setLocalDescription(await pc.createAnswer());
-    await esperaIce(pc, 3000);
-    if (call !== c) return;
-    const a = await seal({ n: myName, sdp: pc.localDescription.sdp, ts: Date.now() }, "a");
-    const res = await callRef.transaction(cur => {
-      if (!cur || cur.from !== c.de || cur.a) return;
-      return Object.assign({}, cur, { a, by: sessao });
-    });
-    if (!res.committed){ encerrar(false, "A chamada já tinha acabado."); return; }
-    callRef.onDisconnect().remove();
-  } catch (e){
-    console.error(e);
-    encerrar(true, e.name === "NotAllowedError" ? "Precisa liberar câmera e microfone." : "Não deu pra atender: " + e.message);
-  }
-}
-
-function encerrar(apagar, msg){
-  const c = call;
-  if (c.estado === "parado") return;
-  call = { estado: "parado" };
-  pararSom(); clearTimeout(c.esperaT); clearInterval(c.relogioT);
-  try { c.pc?.close(); } catch {}
-  c.stream?.getTracks().forEach(t => t.stop());
-  remoto.srcObject = null; local.srcObject = null;
-  $("#chamada").classList.remove("so-audio");
-  callRef?.onDisconnect().cancel();
-  // só apaga o nó se ele ainda for desta chamada
-  const dono = c.papel === "liga" ? sessao : c.de;
-  if (apagar && callVal && callVal.from === dono) callRef.remove();
-  telaChamada();
-  if (msg) toast(msg);
 }
 
 function botoesMidia(){
@@ -966,29 +1097,34 @@ function botoesMidia(){
   set($("#btMic"), !!a && a.enabled, "Desligar microfone", "Ligar microfone");
   set($("#btCam"), !!v && v.enabled, "Desligar câmera", "Ligar câmera");
   $("#btCam").disabled = !v;
-  local.classList.toggle("espelho", call.facing === "user");
+  const espelho = call.facing === "user";
+  local.classList.toggle("espelho", espelho);
+  tileLocal.classList.toggle("reto", !espelho);
 }
 $("#btMic").onclick = () => { call.stream?.getAudioTracks().forEach(t => t.enabled = !t.enabled); botoesMidia(); };
 $("#btCam").onclick = () => { call.stream?.getVideoTracks().forEach(t => t.enabled = !t.enabled); botoesMidia(); };
 $("#btVirar").onclick = async () => {
   const c = call, velha = c.stream?.getVideoTracks()[0];
-  if (!velha || !c.pc) return;
+  if (!velha) return;
   const facing = c.facing === "user" ? "environment" : "user";
   velha.stop();
   try {
     const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
     const nova = s.getVideoTracks()[0];
-    const sender = c.pc.getSenders().find(x => x.track === velha || (x.track && x.track.kind === "video"));
-    if (sender) await sender.replaceTrack(nova);
+    for (const p of peers.values()){
+      const sender = p.pc.getSenders().find(x => x.track === velha || (x.track && x.track.kind === "video"));
+      if (sender) await sender.replaceTrack(nova);
+    }
     c.stream.removeTrack(velha); c.stream.addTrack(nova); c.facing = facing;
-    local.srcObject = c.stream; botoesMidia();
+    local.srcObject = c.stream; localTileV.srcObject = c.stream; botoesMidia(); ajustaQualidade();
   } catch (e){ toast("Não deu pra trocar a câmera."); }
 };
-$("#ligar").onclick = ligar;
-$("#atender").onclick = atender;
-$("#recusar").onclick = () => encerrar(true, null);
-$("#desligar").onclick = () => encerrar(true, null);
-window.addEventListener("pagehide", () => { if (call.estado !== "parado") encerrar(true, null); });
+$("#ligar").onclick = entrar;
+$("#entrarCh").onclick = entrar;
+$("#atender").onclick = entrar;
+$("#recusar").onclick = () => sair(null);
+$("#desligar").onclick = () => sair(null);
+window.addEventListener("pagehide", () => { if (call.estado !== "parado") sair(null); });
 
 /* ================= início ================= */
 (function inicio(){
